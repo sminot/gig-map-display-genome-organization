@@ -33,13 +33,21 @@
         (g) => g !== AppState.referenceGenome && !AppState.visibleGenomes.has(g)
       );
       if (hidden.length > 0) params.set('hidden', hidden.join(','));
+
+      if (AppState.loadedDataURL) params.set('data', AppState.loadedDataURL);
     }
 
     const wedgeInput = document.getElementById('wedge-span-input');
     if (wedgeInput && wedgeInput.value !== '33') params.set('wedge', wedgeInput.value);
 
+    const gapInput = document.getElementById('wedge-gap-input');
+    if (gapInput && gapInput.value !== '6') params.set('gap', gapInput.value);
+
     if (window.GeneAnnotationState && GeneAnnotationState.activeColumn) {
       params.set('annotCol', GeneAnnotationState.activeColumn);
+    }
+    if (window.GeneAnnotationState && GeneAnnotationState.loadedURL) {
+      params.set('geneAnnot', GeneAnnotationState.loadedURL);
     }
 
     if (window.GenomeAnnotationState) {
@@ -49,6 +57,7 @@
       }
       if (GenomeAnnotationState.sortColumn) params.set('genomeSortCol', GenomeAnnotationState.sortColumn);
       if (!GenomeAnnotationState.sortAscending) params.set('genomeSortOrder', 'desc');
+      if (GenomeAnnotationState.loadedURL) params.set('genomeAnnot', GenomeAnnotationState.loadedURL);
     }
 
     const str = params.toString();
@@ -83,6 +92,29 @@
         if (input)   input.value = wedgePct;
         if (display) display.textContent = wedgePct + '%';
         if (window.ZoomState) ZoomState.setWedgeSpan(wedgePct / 100);
+      }
+
+      const gapPx = parseInt(params.get('gap'), 10);
+      if (!isNaN(gapPx) && gapPx >= 0 && gapPx <= 60) {
+        const gapInput   = document.getElementById('wedge-gap-input');
+        const gapDisplay = document.getElementById('wedge-gap-display');
+        if (gapInput)   gapInput.value = gapPx;
+        if (gapDisplay) gapDisplay.textContent = gapPx + 'px';
+        if (window.ZoomState) ZoomState.setWedgeGap(gapPx);
+      }
+
+      // Pre-fill annotation URL fields from params (auto-load happens after annotations load).
+      const geneAnnotUrl   = params.get('geneAnnot');
+      const genomeAnnotUrl = params.get('genomeAnnot');
+      if (geneAnnotUrl) {
+        const inp = document.getElementById('gene-annot-url-input');
+        if (inp) inp.value = geneAnnotUrl;
+        window.loadGeneAnnotationFromURL(geneAnnotUrl);
+      }
+      if (genomeAnnotUrl) {
+        const inp = document.getElementById('genome-annot-url-input');
+        if (inp) inp.value = genomeAnnotUrl;
+        window.loadGenomeAnnotationFromURL(genomeAnnotUrl);
       }
     }
 
@@ -140,6 +172,29 @@
     window.initAnnotationUpload();
     window.initGenomeAnnotationUpload();
     window.initExportButtons();
+
+    // Auto-load data file from ?data= or ?baseUrl= query param.
+    const initParams = new URLSearchParams(location.search);
+    const initDataURL = initParams.get('data');
+    const initBaseURL = initParams.get('baseUrl');
+    if (initDataURL) {
+      const inp = document.getElementById('data-url-input');
+      if (inp) inp.value = initDataURL;
+      window.loadFileFromURL(initDataURL);
+    } else if (initBaseURL) {
+      let base = initBaseURL;
+      if (!base.endsWith('/')) base += '/';
+      const dataURL = base + 'genomes.aln.csv.gz';
+      const inp = document.getElementById('data-url-input');
+      const baseInp = document.getElementById('base-url-input');
+      const geneInp = document.getElementById('gene-annot-url-input');
+      const genomeInp = document.getElementById('genome-annot-url-input');
+      if (inp)       inp.value       = dataURL;
+      if (baseInp)   baseInp.value   = initBaseURL;
+      if (geneInp)   geneInp.value   = base + 'gene_annotations.csv';
+      if (genomeInp) genomeInp.value = base + 'genome_annotations.csv';
+      window.loadFileFromURL(dataURL);
+    }
 
     // Reference genome selector
     document.getElementById('reference-select').addEventListener('change', (e) => {
@@ -209,11 +264,65 @@
       });
     }
 
+    // Gap slider
+    const wedgeGapInput   = document.getElementById('wedge-gap-input');
+    const wedgeGapDisplay = document.getElementById('wedge-gap-display');
+    if (wedgeGapInput) {
+      wedgeGapInput.addEventListener('input', () => {
+        const px = parseInt(wedgeGapInput.value, 10);
+        if (wedgeGapDisplay) wedgeGapDisplay.textContent = px + 'px';
+        if (window.ZoomState) ZoomState.setWedgeGap(px);
+        const rd = window.getLastRenderData ? window.getLastRenderData() : null;
+        if (rd && typeof window.drawVisualization === 'function') window.drawVisualization(rd);
+        writeURLParams();
+      });
+    }
+
     // Reset zoom button
     const resetZoomBtn = document.getElementById('reset-zoom-btn');
     if (resetZoomBtn) {
       resetZoomBtn.addEventListener('click', () => {
         if (window.ZoomState) window.ZoomState.resetZoom();
+      });
+    }
+
+    // ── URL loading buttons ──────────────────────────────────────────────────
+
+    function wireURLBtn(btnId, inputId, loader) {
+      const btn = document.getElementById(btnId);
+      const inp = document.getElementById(inputId);
+      if (!btn || !inp) return;
+      btn.addEventListener('click', () => {
+        const url = inp.value.trim();
+        if (url) loader(url);
+      });
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { const url = inp.value.trim(); if (url) loader(url); }
+      });
+    }
+
+    wireURLBtn('data-url-btn',       'data-url-input',        (url) => window.loadFileFromURL(url));
+    wireURLBtn('gene-annot-url-btn', 'gene-annot-url-input',  (url) => window.loadGeneAnnotationFromURL(url));
+    wireURLBtn('genome-annot-url-btn','genome-annot-url-input',(url) => window.loadGenomeAnnotationFromURL(url));
+
+    // Base URL: fill data URL field and trigger load; pre-fill annotation URL fields.
+    const baseUrlBtn = document.getElementById('base-url-btn');
+    const baseUrlInput = document.getElementById('base-url-input');
+    if (baseUrlBtn && baseUrlInput) {
+      baseUrlBtn.addEventListener('click', () => {
+        let base = baseUrlInput.value.trim();
+        if (!base) return;
+        if (!base.endsWith('/')) base += '/';
+
+        const dataInput = document.getElementById('data-url-input');
+        const geneInput = document.getElementById('gene-annot-url-input');
+        const genomeInput = document.getElementById('genome-annot-url-input');
+
+        if (dataInput)   dataInput.value   = base + 'genomes.aln.csv.gz';
+        if (geneInput)   geneInput.value   = base + 'gene_annotations.csv';
+        if (genomeInput) genomeInput.value = base + 'genome_annotations.csv';
+
+        window.loadFileFromURL(base + 'genomes.aln.csv.gz');
       });
     }
   });

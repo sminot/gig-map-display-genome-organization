@@ -432,6 +432,68 @@ body {
 }
 
 /* ============================================================
+   URL loading inputs
+   ============================================================ */
+.url-load-section {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.url-load-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.url-load-label {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  width: 58px;
+  flex-shrink: 0;
+}
+
+.url-load-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: 11px;
+  padding: 3px 6px;
+}
+
+.url-load-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.url-load-input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.6;
+}
+
+.btn-url {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 3px 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.btn-url:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+/* ============================================================
    Zoom hint overlay
    ============================================================ */
 .zoom-hint {

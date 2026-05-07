@@ -99,6 +99,35 @@ window.getPalette = function getPalette(name) {
  * @param {File} file
  * @returns {Promise<string>}
  */
+/**
+ * Fetch a URL to a UTF-8 string, decompressing gzip if needed.
+ * Detects gzip by URL extension (.gz) or response Content-Encoding header.
+ *
+ * @param {string} url
+ * @returns {Promise<string>}
+ */
+window.readURLAsText = async function readURLAsText(url) {
+  var resp;
+  try {
+    resp = await fetch(url);
+  } catch (e) {
+    throw new Error('Could not fetch URL — check that the server allows CORS requests. (' + e.message + ')');
+  }
+  if (!resp.ok) throw new Error('HTTP ' + resp.status + ' fetching URL.');
+
+  var isGzip = /\.gz$/i.test(url.split('?')[0]) ||
+               (resp.headers.get('content-encoding') || '').toLowerCase().includes('gzip');
+
+  if (!isGzip) return resp.text();
+
+  if (typeof DecompressionStream === 'undefined') {
+    throw new Error('Your browser does not support gzip decompression. Please use Chrome, Firefox, or Edge.');
+  }
+  var ds = new DecompressionStream('gzip');
+  var decompressed = resp.body.pipeThrough(ds);
+  return new Response(decompressed).text();
+};
+
 window.readFileAsText = async function readFileAsText(file) {
   // Detect gzip by magic bytes 0x1F 0x8B.
   var headerBuf   = await file.slice(0, 2).arrayBuffer();

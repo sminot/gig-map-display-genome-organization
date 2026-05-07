@@ -40,6 +40,11 @@
       this.wedgeSpan = Math.max(0.1, Math.min(0.5, span));
     },
 
+    wedgeGap: 6,
+    setWedgeGap: function (px) {
+      this.wedgeGap = Math.max(0, Math.min(80, px));
+    },
+
     setHovering: function (hovering) {
       this.isHovering = hovering;
     },
