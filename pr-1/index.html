@@ -183,6 +183,27 @@
             <div id="genome-annotation-legend" class="legend-container"></div>
           </section>
 
+          <!-- Zoom section -->
+          <section class="control-section" aria-labelledby="zoom-section-heading">
+            <h2 class="control-section-heading" id="zoom-section-heading">Zoom</h2>
+            <div class="control-row">
+              <label for="wedge-span-input" class="control-label">Wedge</label>
+              <input
+                type="range"
+                id="wedge-span-input"
+                class="range-control"
+                min="10"
+                max="50"
+                value="33"
+                step="1"
+                aria-label="Zoom wedge size as percent of full circle"
+              />
+              <span id="wedge-span-display" class="range-display">33%</span>
+            </div>
+            <button id="reset-zoom-btn" class="btn-export" type="button" style="width:100%;margin-top:4px">Reset Zoom</button>
+            <p class="control-hint">Hover over the circle and scroll to zoom in. The wedge shows the zoomed region.</p>
+          </section>
+
           <!-- Export section -->
           <section class="control-section" aria-labelledby="export-section-heading">
             <h2 class="control-section-heading" id="export-section-heading">Export</h2>
@@ -206,15 +227,6 @@
           <svg id="overlay-svg" aria-hidden="true"></svg>
         </div>
 
-        <!-- Selection clear button (hidden until at least one selection exists) -->
-        <button
-          id="clear-selections-btn"
-          class="clear-selections-btn"
-          type="button"
-          hidden
-          aria-label="Clear all arc selections"
-        >× Clear 0 selections</button>
-
         <!-- Tooltip (hidden by default, positioned by JS) -->
         <div id="tooltip" class="tooltip" role="tooltip" aria-hidden="true"></div>
       </main>
@@ -226,7 +238,9 @@
     <script src="data-contract.js"></script>
     <script src="app.js"></script>
     <script src="genome-viz.js"></script>
-    <script src="selection.js"></script>
+    <script src="zoom-state.js"></script>
+    <script src="webgl-renderer.js"></script>
+    <script src="zoom-interaction.js"></script>
     <script src="annotation.js"></script>
     <script src="genome-annotation.js"></script>
     <script src="export.js"></script>
