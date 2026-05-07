@@ -66,7 +66,8 @@
 
     // ── Ring geometry ──────────────────────────────────────────────────────
 
-    const outerRadius       = Math.min(cx, cy) * 0.92;
+    const scale             = window.ZoomState ? window.ZoomState.displayRadiusScale : 1;
+    const outerRadius       = Math.min(cx, cy) * 0.92 * scale;
     const referenceRingWidth = 18;
     const numGenomes        = Math.max(1, renderData.visibleGenomes.length);
 
@@ -239,41 +240,87 @@
     if (theta < 0)             theta += 2 * Math.PI;
     if (theta >= 2 * Math.PI)  theta -= 2 * Math.PI;
 
-    // ── Determine ring ────────────────────────────────────────────────────
+    // ── Determine ring (wedge or main circle) ─────────────────────────────
 
-    let hitGenome      = null;
-    let hitIsReference = false;
+    let hitGenome       = null;
+    let hitIsReference  = false;
     let hitIsAnnotation = false;
+    let searchAngle     = theta; // angle used for gene hit-test
 
-    if (r >= referenceRingInner && r <= referenceRingOuter) {
-      hitIsReference = true;
-    } else if (lastRenderData.annotActive &&
-               r >= annotRingInner && r <= annotRingOuter) {
-      hitIsAnnotation = true;
-    } else if (r < referenceRingInner) {
-      for (let i = 0; i < lastRenderData.visibleGenomes.length; i++) {
-        const { outer, inner } = genomeRingBounds(i);
-        if (r >= inner && r <= outer) {
-          hitGenome = lastRenderData.visibleGenomes[i];
-          break;
+    const zs     = window.ZoomState;
+    const WEDGE_GAP  = 18;
+    const blowInner  = referenceRingOuter + WEDGE_GAP;
+
+    if (zs && zs.zoomLevel > 1.05 && r >= blowInner - 2) {
+      // ── Wedge region ────────────────────────────────────────────────────
+      const ANN_W    = lastRenderData.annotActive ? 12 : 0;
+      const numG     = lastRenderData.visibleGenomes.length;
+      const GEN_W    = Math.min(18, Math.max(5,
+        (referenceRingOuter * 0.35 - ANN_W) / Math.max(1, numG)));
+      const blowOuter = blowInner + ANN_W + numG * GEN_W + 6;
+
+      if (r > blowOuter + 5) { hideTooltip(); return; }
+
+      // Check angular bounds.
+      const wedgeHalfSpan = zs.wedgeSpan * Math.PI;
+      let localAngle = theta - zs.focusAngle;
+      if (localAngle > Math.PI)  localAngle -= 2 * Math.PI;
+      if (localAngle < -Math.PI) localAngle += 2 * Math.PI;
+
+      if (Math.abs(localAngle) > wedgeHalfSpan + 0.05) { hideTooltip(); return; }
+
+      // Inverse zoom transform → genome angle.
+      let genomeAngle = zs.focusAngle + localAngle / zs.zoomLevel;
+      genomeAngle = ((genomeAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      searchAngle = genomeAngle;
+
+      // Identify which ring band within the wedge.
+      if (lastRenderData.annotActive && ANN_W > 0 && r >= blowInner && r < blowInner + ANN_W) {
+        hitIsAnnotation = true;
+      } else {
+        for (let i = 0; i < lastRenderData.visibleGenomes.length; i++) {
+          const gInner = blowInner + ANN_W + i * GEN_W;
+          const gOuter = gInner + GEN_W - 2;
+          if (r >= gInner && r <= gOuter) {
+            hitGenome = lastRenderData.visibleGenomes[i];
+            break;
+          }
         }
+      }
+
+      if (!hitGenome && !hitIsAnnotation) { hideTooltip(); return; }
+
+    } else {
+      // ── Main circle rings ────────────────────────────────────────────────
+      if (r >= referenceRingInner && r <= referenceRingOuter) {
+        hitIsReference = true;
+      } else if (lastRenderData.annotActive &&
+                 r >= annotRingInner && r <= annotRingOuter) {
+        hitIsAnnotation = true;
+      } else if (r < referenceRingInner) {
+        for (let i = 0; i < lastRenderData.visibleGenomes.length; i++) {
+          const { outer, inner } = genomeRingBounds(i);
+          if (r >= inner && r <= outer) {
+            hitGenome = lastRenderData.visibleGenomes[i];
+            break;
+          }
+        }
+      }
+
+      if (!hitIsReference && !hitGenome && !hitIsAnnotation) {
+        hideTooltip();
+        return;
       }
     }
 
-    if (!hitIsReference && !hitGenome && !hitIsAnnotation) {
-      hideTooltip();
-      return;
-    }
-
     // ── Determine gene arc ────────────────────────────────────────────────
-    // Linear scan; angles are in [0, 2π) for forward-strand genes.
 
     let hitGeneId   = null;
     let hitGeneInfo = null;
 
     for (const [geneId, geneInfo] of lastRenderData.referenceGenes) {
       const { startAngle, endAngle } = geneInfo;
-      if (endAngle <= startAngle) continue; // reverse-strand gene — never drawn
+      if (endAngle <= startAngle) continue;
 
       let sa = startAngle;
       let ea = endAngle;
@@ -281,10 +328,9 @@
       if (ea < 0) ea += 2 * Math.PI;
 
       if (sa <= ea) {
-        if (theta >= sa && theta <= ea) { hitGeneId = geneId; hitGeneInfo = geneInfo; break; }
+        if (searchAngle >= sa && searchAngle <= ea) { hitGeneId = geneId; hitGeneInfo = geneInfo; break; }
       } else {
-        // Wrap-around arc.
-        if (theta >= sa || theta <= ea) { hitGeneId = geneId; hitGeneInfo = geneInfo; break; }
+        if (searchAngle >= sa || searchAngle <= ea) { hitGeneId = geneId; hitGeneInfo = geneInfo; break; }
       }
     }
 

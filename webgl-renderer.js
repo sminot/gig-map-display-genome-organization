@@ -83,6 +83,13 @@ void main() { fragColor = vColor; }
   let bgVAO = null;
   let bgBuffer = null;
 
+  // VAO / buffer for the zoom-region indicator on the main circle
+  let indVAO = null;
+  let indBuffer = null;
+
+  // Track displayRadiusScale changes to trigger canvas redraws
+  let lastDisplayScale = 1;
+
   // Attribute / uniform locations
   let locs = {};
 
@@ -162,16 +169,16 @@ void main() { fragColor = vColor; }
   // ── Ring geometry helper ──────────────────────────────────────────────────
 
   function computeRingGeometry(rd, cx, cy) {
-    const outerRadius = Math.min(cx, cy) * 0.92;
+    const scale = window.ZoomState ? window.ZoomState.displayRadiusScale : 1;
+    const outerRadius = Math.min(cx, cy) * 0.92 * scale;
     const GAP = 18;
     const blowInner = outerRadius + GAP;
-    const REF_W = 16;
     const ANN_W = rd.annotActive ? 12 : 0;
     const numGenomes = rd.visibleGenomes.length;
     const GEN_W = Math.min(18, Math.max(5,
-      (outerRadius * 0.35 - REF_W - ANN_W) / Math.max(1, numGenomes)));
-    const blowOuter = blowInner + REF_W + ANN_W + numGenomes * GEN_W + 6;
-    return { outerRadius, blowInner, blowOuter, REF_W, ANN_W, GEN_W };
+      (outerRadius * 0.35 - ANN_W) / Math.max(1, numGenomes)));
+    const blowOuter = blowInner + ANN_W + numGenomes * GEN_W + 6;
+    return { outerRadius, blowInner, blowOuter, ANN_W, GEN_W };
   }
 
   // ── Data buffer builder ───────────────────────────────────────────────────
@@ -183,7 +190,7 @@ void main() { fragColor = vColor; }
     const canvas = gl.canvas;
     const cx = canvas.width / 2;
     const cy = canvas.height / 2;
-    const { blowInner, REF_W, ANN_W, GEN_W } = computeRingGeometry(rd, cx, cy);
+    const { blowInner, ANN_W, GEN_W } = computeRingGeometry(rd, cx, cy);
 
     const instances = [];
 
@@ -192,22 +199,9 @@ void main() { fragColor = vColor; }
       instances.push(geoStart, geoEnd, rInner, rOuter, r, g, b, a);
     }
 
-    // ── Reference ring — use contigs (solid chromosomal arcs, same as main circle) ──
-    const refColor = parseColorToFloat('#6366f1');
-    const TWO_PI = Math.PI * 2;
-    if (rd.contigs && rd.totalLength > 0) {
-      rd.contigs.forEach((contig) => {
-        const startAngle = (contig.cumStart / rd.totalLength) * TWO_PI;
-        const endAngle   = ((contig.cumStart + contig.length) / rd.totalLength) * TWO_PI;
-        if (endAngle > startAngle) {
-          push(startAngle, endAngle, blowInner, blowInner + REF_W, refColor);
-        }
-      });
-    }
-
     // ── Annotation ring — only genes that have an annotation color ────────
     if (rd.annotActive && ANN_W > 0 && rd.referenceGenes && rd.geneAnnotColors) {
-      const annInner = blowInner + REF_W;
+      const annInner = blowInner;
       const annOuter = annInner + ANN_W;
 
       rd.referenceGenes.forEach((gene, geneId) => {
@@ -227,7 +221,7 @@ void main() { fragColor = vColor; }
     // ── Genome rings ──────────────────────────────────────────────────────
     if (rd.visibleGenomes && rd.referenceGenes) {
       rd.visibleGenomes.forEach((genomeId, i) => {
-        const gInner = blowInner + REF_W + ANN_W + i * GEN_W;
+        const gInner = blowInner + ANN_W + i * GEN_W;
         const gOuter = gInner + GEN_W - 2;
 
         const genomeMap = rd.genomeGenes ? rd.genomeGenes.get(genomeId) : null;
@@ -268,6 +262,12 @@ void main() { fragColor = vColor; }
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
   }
 
+  function updateIndBuffer(geoStart, geoEnd, innerR, outerR) {
+    const data = new Float32Array([geoStart, geoEnd, innerR, outerR, 1.0, 0.85, 0.1, 0.9]);
+    gl.bindBuffer(gl.ARRAY_BUFFER, indBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+  }
+
   // ── Uniform helpers ───────────────────────────────────────────────────────
 
   function setUniforms(focusAngle, dataHalfSpan, wedgeHalfSpan, zoomLevel, cx, cy) {
@@ -289,7 +289,34 @@ void main() { fragColor = vColor; }
     window.ZoomState.tick(dt);
 
     const zs = window.ZoomState;
-    const shouldShow = zs.isHovering && zs.zoomLevel > 1.05;
+
+    // Compute target radius scale so the wedge fits within the canvas.
+    const canvas = gl.canvas;
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+
+    if (lastRenderData) {
+      const R0 = Math.min(cx, cy) * 0.92;
+      const ANN_W0 = lastRenderData.annotActive ? 12 : 0;
+      const numG0 = lastRenderData.visibleGenomes.length;
+      const GEN_W0 = Math.min(18, Math.max(5, (R0 * 0.35 - ANN_W0) / Math.max(1, numG0)));
+      const wedgeExtra = 18 + ANN_W0 + numG0 * GEN_W0 + 6;
+      const targetScale = zs.zoomLevel > 1.05
+        ? Math.min(1.0, (Math.min(cx, cy) * 0.97 - wedgeExtra) / R0)
+        : 1.0;
+      zs.setTargetRadiusScale(targetScale);
+    }
+
+    // Trigger a Canvas 2D redraw whenever the scale has meaningfully changed.
+    if (Math.abs(zs.displayRadiusScale - lastDisplayScale) > 0.002) {
+      lastDisplayScale = zs.displayRadiusScale;
+      if (typeof window.drawVisualization === 'function' && window.getLastRenderData) {
+        const rd = window.getLastRenderData();
+        if (rd) window.drawVisualization(rd);
+      }
+    }
+
+    const shouldShow = zs.zoomLevel > 1.05;
 
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
@@ -304,11 +331,7 @@ void main() { fragColor = vColor; }
       dirty = false;
     }
 
-    const canvas = gl.canvas;
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
-
-    const { blowInner, blowOuter } = computeRingGeometry(lastRenderData, cx, cy);
+    const { blowInner, blowOuter, outerRadius } = computeRingGeometry(lastRenderData, cx, cy);
 
     const wedgeHalfSpan = zs.wedgeSpan * Math.PI;
     const dataHalfSpan  = wedgeHalfSpan / zs.zoomLevel;
@@ -326,6 +349,16 @@ void main() { fragColor = vColor; }
       gl.bindVertexArray(dataVAO);
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 16 * 6, numDataInstances);
     }
+
+    // Draw indicator arc on the main circle showing the zoomed region.
+    // Uses identity uniforms so arcs render at their natural genome angle.
+    updateIndBuffer(zs.focusAngle - dataHalfSpan, zs.focusAngle + dataHalfSpan,
+                    outerRadius + 2, outerRadius + 6);
+    gl.uniform1f(locs.uZoomLevel,     1.0);
+    gl.uniform1f(locs.uDataHalfSpan,  Math.PI);
+    gl.uniform1f(locs.uWedgeHalfSpan, Math.PI);
+    gl.bindVertexArray(indVAO);
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, 16 * 6, 1);
 
     gl.bindVertexArray(null);
 
@@ -394,9 +427,15 @@ void main() { fragColor = vColor; }
     gl.bindBuffer(gl.ARRAY_BUFFER, bgBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, 8 * 4, gl.DYNAMIC_DRAW);
 
+    // Allocate indicator buffer (1 instance)
+    indBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, indBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, 8 * 4, gl.DYNAMIC_DRAW);
+
     // Build VAOs
     bgVAO   = createInstancedVAO(bgBuffer);
     dataVAO = createInstancedVAO(dataBuffer);
+    indVAO  = createInstancedVAO(indBuffer);
 
     // ResizeObserver
     const ro = new ResizeObserver(() => {
