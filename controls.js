@@ -26,7 +26,8 @@
   document.addEventListener('DOMContentLoaded', () => {
     window.initFileUpload();
     window.initViz();
-    window.initSelectionInteraction();
+    window.initZoomInteraction();
+    window.initWebGLRenderer();
     window.initAnnotationUpload();
     window.initGenomeAnnotationUpload();
     window.initExportButtons();
@@ -84,6 +85,25 @@
         const col = document.getElementById('genome-sort-column-select').value || null;
         const asc = genomeSortOrderSelect.value !== 'desc';
         window.setGenomeSortColumn(col, asc);
+      });
+    }
+
+    // Wedge span slider
+    const wedgeSpanInput   = document.getElementById('wedge-span-input');
+    const wedgeSpanDisplay = document.getElementById('wedge-span-display');
+    if (wedgeSpanInput) {
+      wedgeSpanInput.addEventListener('input', () => {
+        const pct = parseInt(wedgeSpanInput.value, 10);
+        if (wedgeSpanDisplay) wedgeSpanDisplay.textContent = pct + '%';
+        if (window.ZoomState) window.ZoomState.setWedgeSpan(pct / 100);
+      });
+    }
+
+    // Reset zoom button
+    const resetZoomBtn = document.getElementById('reset-zoom-btn');
+    if (resetZoomBtn) {
+      resetZoomBtn.addEventListener('click', () => {
+        if (window.ZoomState) window.ZoomState.resetZoom();
       });
     }
   });

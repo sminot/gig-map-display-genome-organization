@@ -57,7 +57,14 @@ function initFileUpload() {
     }
   });
 
-  // Click on the drop-zone also opens the file picker
+  // Click on the drop-zone opens the file picker.
+  // fileInput already covers the zone (position:absolute;inset:0), so a direct
+  // click on the zone hits the input natively.  Stop propagation here to prevent
+  // that click from also bubbling up and triggering fileInput.click() a second time.
+  fileInput.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+
   dropZone.addEventListener('click', () => {
     fileInput.click();
   });
@@ -305,7 +312,7 @@ function buildRenderData() {
   }
 
   // ── Return RenderData ─────────────────────────────────────────────────────
-  return {
+  const renderData = {
     contigs,
     totalLength,
     referenceGenes,
@@ -320,6 +327,12 @@ function buildRenderData() {
     geneAnnotValues,
     genomeColors,
   };
+
+  if (typeof window.updateWebGLRenderData === 'function') {
+    window.updateWebGLRenderData(renderData);
+  }
+
+  return renderData;
 }
 
 window.buildRenderData = buildRenderData;

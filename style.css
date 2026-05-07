@@ -256,12 +256,11 @@ body {
    Controls panel
    ============================================================ */
 .controls-panel {
-  flex: 1;
+  flex-shrink: 0;
   padding: 0 var(--spacing-md) var(--spacing-xl);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
-  overflow: hidden; /* inner sections handle their own overflow */
 }
 
 .controls-panel[hidden] {
@@ -406,8 +405,9 @@ body {
   height: 100%;
 }
 
-/* Canvas and SVG overlay stacked exactly on top of each other */
+/* Canvas layers and SVG overlay stacked exactly on top of each other */
 #main-canvas,
+#webgl-canvas,
 #overlay-svg {
   position: absolute;
   top: 0;
@@ -421,8 +421,13 @@ body {
   z-index: 1;
 }
 
-#overlay-svg {
+#webgl-canvas {
   z-index: 2;
+  pointer-events: none;
+}
+
+#overlay-svg {
+  z-index: 3;
   pointer-events: none; /* let mouse events fall through to canvas by default */
 }
 
@@ -642,6 +647,30 @@ body {
   justify-content: space-between;
   font-size: 10px;
   color: var(--color-text-muted);
+}
+
+/* ============================================================
+   Range slider
+   ============================================================ */
+.range-control {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.range-display {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  width: 32px;
+  text-align: right;
+}
+
+.control-hint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  line-height: 1.4;
 }
 
 /* ============================================================
