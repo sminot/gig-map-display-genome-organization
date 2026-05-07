@@ -248,7 +248,7 @@
     let searchAngle     = theta; // angle used for gene hit-test
 
     const zs     = window.ZoomState;
-    const WEDGE_GAP  = 18;
+    const WEDGE_GAP  = 6;
     const blowInner  = referenceRingOuter + WEDGE_GAP;
 
     if (zs && zs.zoomLevel > 1.05 && r >= blowInner - 2) {

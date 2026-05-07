@@ -21,6 +21,115 @@
   // Cached d3 color scale — built once after data loads, reused for toggle dots.
   let colorScale = null;
 
+  // ─── URL query-param state ────────────────────────────────────────────────
+
+  function writeURLParams() {
+    const params = new URLSearchParams();
+
+    if (window.AppState && AppState.referenceGenome) {
+      params.set('ref', AppState.referenceGenome);
+
+      const hidden = AppState.allGenomes.filter(
+        (g) => g !== AppState.referenceGenome && !AppState.visibleGenomes.has(g)
+      );
+      if (hidden.length > 0) params.set('hidden', hidden.join(','));
+    }
+
+    const wedgeInput = document.getElementById('wedge-span-input');
+    if (wedgeInput && wedgeInput.value !== '33') params.set('wedge', wedgeInput.value);
+
+    if (window.GeneAnnotationState && GeneAnnotationState.activeColumn) {
+      params.set('annotCol', GeneAnnotationState.activeColumn);
+    }
+
+    if (window.GenomeAnnotationState) {
+      if (GenomeAnnotationState.colorColumn) params.set('genomeColorCol', GenomeAnnotationState.colorColumn);
+      if (GenomeAnnotationState.palette && GenomeAnnotationState.palette !== 'Tableau10') {
+        params.set('genomePalette', GenomeAnnotationState.palette);
+      }
+      if (GenomeAnnotationState.sortColumn) params.set('genomeSortCol', GenomeAnnotationState.sortColumn);
+      if (!GenomeAnnotationState.sortAscending) params.set('genomeSortOrder', 'desc');
+    }
+
+    const str = params.toString();
+    history.replaceState(null, '', str ? '?' + str : location.pathname);
+  }
+
+  function applyURLParams(scope) {
+    const params = new URLSearchParams(location.search);
+
+    if (scope === 'data') {
+      const ref = params.get('ref');
+      if (ref && AppState.allGenomes.includes(ref) && ref !== AppState.referenceGenome) {
+        window.setReference(ref);
+        document.getElementById('reference-select').value = ref;
+      }
+
+      const hiddenStr = params.get('hidden');
+      if (hiddenStr) {
+        const hiddenSet = new Set(hiddenStr.split(','));
+        for (const g of AppState.allGenomes) {
+          if (g === AppState.referenceGenome) continue;
+          if (hiddenSet.has(g)) AppState.visibleGenomes.delete(g);
+          else AppState.visibleGenomes.add(g);
+        }
+        buildGenomeToggles();
+      }
+
+      const wedgePct = parseInt(params.get('wedge'), 10);
+      if (!isNaN(wedgePct) && wedgePct >= 10 && wedgePct <= 50) {
+        const input   = document.getElementById('wedge-span-input');
+        const display = document.getElementById('wedge-span-display');
+        if (input)   input.value = wedgePct;
+        if (display) display.textContent = wedgePct + '%';
+        if (window.ZoomState) ZoomState.setWedgeSpan(wedgePct / 100);
+      }
+    }
+
+    if (scope === 'geneAnnotation') {
+      const col = params.get('annotCol');
+      const sel = document.getElementById('annotation-column-select');
+      if (col && sel && [...sel.options].some((o) => o.value === col)) {
+        sel.value = col;
+        window.setGeneAnnotationColumn(col);
+        if (typeof window.renderGeneAnnotationLegend === 'function') window.renderGeneAnnotationLegend();
+      }
+    }
+
+    if (scope === 'genomeAnnotation') {
+      const colorCol    = params.get('genomeColorCol');
+      const palette     = params.get('genomePalette');
+      const sortCol     = params.get('genomeSortCol');
+      const sortOrder   = params.get('genomeSortOrder');
+
+      const colorSel    = document.getElementById('genome-color-column-select');
+      const paletteSel  = document.getElementById('genome-palette-select');
+      const sortColSel  = document.getElementById('genome-sort-column-select');
+      const sortOrdSel  = document.getElementById('genome-sort-order-select');
+
+      if (colorCol && colorSel && [...colorSel.options].some((o) => o.value === colorCol)) {
+        colorSel.value = colorCol;
+        window.setGenomeColorColumn(colorCol);
+      }
+      if (palette && paletteSel) {
+        paletteSel.value = palette;
+        window.setGenomePalette(palette);
+      }
+      if (sortCol && sortColSel && [...sortColSel.options].some((o) => o.value === sortCol)) {
+        sortColSel.value = sortCol;
+      }
+      if (sortOrder && sortOrdSel) {
+        sortOrdSel.value = sortOrder;
+      }
+      if ((sortCol || sortOrder) && window.setGenomeSortColumn) {
+        const col  = sortColSel ? (sortColSel.value || null) : null;
+        const asc  = sortOrdSel ? sortOrdSel.value !== 'desc' : true;
+        window.setGenomeSortColumn(col, asc);
+      }
+      if (typeof window.renderGenomeAnnotationLegend === 'function') window.renderGenomeAnnotationLegend();
+    }
+  }
+
   // ─── Boot ─────────────────────────────────────────────────────────────────
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -96,6 +205,7 @@
         const pct = parseInt(wedgeSpanInput.value, 10);
         if (wedgeSpanDisplay) wedgeSpanDisplay.textContent = pct + '%';
         if (window.ZoomState) window.ZoomState.setWedgeSpan(pct / 100);
+        writeURLParams();
       });
     }
 
@@ -134,6 +244,7 @@
 
     document.getElementById('controls-panel').hidden = false;
 
+    applyURLParams('data');
     window.onStateChanged();
   };
 
@@ -149,6 +260,7 @@
     if (typeof window.renderGenomeAnnotationLegend === 'function') {
       window.renderGenomeAnnotationLegend();
     }
+    writeURLParams();
   };
 
   // ─── Callbacks for annotation.js ──────────────────────────────────────────
@@ -180,6 +292,7 @@
       window.setGeneAnnotationColumn(GeneAnnotationState.columns[0]);
     }
 
+    applyURLParams('geneAnnotation');
     window.renderGeneAnnotationLegend();
   };
 
@@ -227,6 +340,7 @@
       window.setGenomeColorColumn(GenomeAnnotationState.columns[0]);
     }
 
+    applyURLParams('genomeAnnotation');
     window.renderGenomeAnnotationLegend();
   };
 

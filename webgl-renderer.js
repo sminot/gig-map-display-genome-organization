@@ -171,7 +171,7 @@ void main() { fragColor = vColor; }
   function computeRingGeometry(rd, cx, cy) {
     const scale = window.ZoomState ? window.ZoomState.displayRadiusScale : 1;
     const outerRadius = Math.min(cx, cy) * 0.92 * scale;
-    const GAP = 18;
+    const GAP = 6;
     const blowInner = outerRadius + GAP;
     const ANN_W = rd.annotActive ? 12 : 0;
     const numGenomes = rd.visibleGenomes.length;
@@ -296,15 +296,13 @@ void main() { fragColor = vColor; }
     const cy = canvas.height / 2;
 
     if (lastRenderData) {
-      const R0 = Math.min(cx, cy) * 0.92;
-      const ANN_W0 = lastRenderData.annotActive ? 12 : 0;
-      const numG0 = lastRenderData.visibleGenomes.length;
-      const GEN_W0 = Math.min(18, Math.max(5, (R0 * 0.35 - ANN_W0) / Math.max(1, numG0)));
-      const wedgeExtra = 18 + ANN_W0 + numG0 * GEN_W0 + 6;
+      const { blowOuter } = computeRingGeometry(lastRenderData, cx, cy);
+      const maxR = Math.min(cx, cy) * 0.97;
+      // Converges to blowOuter == maxR by proportionally adjusting scale each frame.
       const targetScale = zs.zoomLevel > 1.05
-        ? Math.min(1.0, (Math.min(cx, cy) * 0.97 - wedgeExtra) / R0)
+        ? Math.min(1.0, zs.displayRadiusScale * maxR / blowOuter)
         : 1.0;
-      zs.setTargetRadiusScale(targetScale);
+      zs.setTargetRadiusScale(Math.max(0.3, targetScale));
     }
 
     // Trigger a Canvas 2D redraw whenever the scale has meaningfully changed.
