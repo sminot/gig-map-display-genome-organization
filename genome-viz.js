@@ -163,20 +163,7 @@
       ctx.fill(batchPath);
     }
 
-    // ── Draw selection overlay ────────────────────────────────────────────
-    drawSelectionOverlay(ctx, outerRadius, referenceRingInner, annotRingInner, annotActive, geneRingWidth, renderData.visibleGenomes.length, makeArcPath);
-
     ctx.restore();
-
-    // ── Draw blowout expansions ───────────────────────────────────────────
-    if (window.SelectionState) {
-      ctx.save();
-      ctx.translate(cx, cy);
-      for (const sel of window.SelectionState.selections) {
-        drawBlowout(ctx, svg, sel, renderData, annotActive, annotRingInner, annotRingOuter, outerRadius, referenceRingInner, geneRingWidth, cx, cy, makeArcPath);
-      }
-      ctx.restore();
-    }
 
     // ── Draw contig labels (SVG overlay) ──────────────────────────────────
 
@@ -232,12 +219,6 @@
   // ─── Hit Detection ─────────────────────────────────────────────────────────
 
   function handleMouseMove(event) {
-    // Suppress tooltip while a selection drag is in progress.
-    if (window.isDragActive && window.isDragActive()) {
-      hideTooltip();
-      return;
-    }
-
     if (!lastRenderData || !lastGeometry) {
       hideTooltip();
       return;
@@ -393,233 +374,7 @@
     }
   }
 
-  function drawSelectionOverlay(ctx, outerR, refInner, annotInner, annotActive, ringWidth, numRings, makeArcPath) {
-    if (!window.SelectionState) return;
 
-    const innermost = Math.max(5,
-      (annotActive ? annotInner : refInner) - numRings * ringWidth - 8);
-
-    // Drag preview (live arc while user is dragging)
-    const drag = window.SelectionState.dragState;
-    if (drag) {
-      let sa = drag.startTheta, ea = drag.currentTheta;
-      let span = (ea - sa + 2 * Math.PI) % (2 * Math.PI);
-      if (span > Math.PI) { [sa, ea] = [ea, sa]; span = 2 * Math.PI - span; }
-      ea = sa + span;
-      const dragArcPath = makeArcPath(innermost, outerR, sa, ea);
-      if (dragArcPath) {
-        ctx.fillStyle   = 'rgba(148,163,184,0.12)';
-        ctx.fill(new Path2D(dragArcPath));
-        ctx.strokeStyle = 'rgba(148,163,184,0.7)';
-        ctx.lineWidth   = 1.5;
-        ctx.setLineDash([4, 3]);
-        const borderPath = makeArcPath(outerR - 1, outerR + 2, sa, ea);
-        if (borderPath) ctx.stroke(new Path2D(borderPath));
-        ctx.setLineDash([]);
-      }
-    }
-
-    // Committed selection highlights
-    for (const sel of window.SelectionState.selections) {
-      let { theta1: sa, theta2: ea } = sel;
-      if (sa > ea) ea += 2 * Math.PI; // normalize seam-crossing arc
-      const selPath = makeArcPath(innermost, outerR, sa, ea);
-      if (selPath) {
-        ctx.fillStyle = 'rgba(250,204,21,0.1)';
-        ctx.fill(new Path2D(selPath));
-        const selBorder = makeArcPath(outerR - 1, outerR + 3, sa, ea);
-        if (selBorder) {
-          ctx.strokeStyle = 'rgba(250,204,21,0.75)';
-          ctx.lineWidth   = 2;
-          ctx.stroke(new Path2D(selBorder));
-        }
-      }
-    }
-  }
-
-  function drawBlowout(ctx, svgEl, sel, renderData, annotActive, annotInner, annotOuter,
-                       outerR, refInner, ringWidth, cx, cy, makeArcPath) {
-    let { theta1: t1, theta2: t2 } = sel;
-    if (t1 > t2) t2 += 2 * Math.PI; // normalize seam-crossing selection
-
-    const selSpan = t2 - t1;
-    const midTheta = t1 + selSpan / 2;
-
-    // Expand selected arc to a wider angle band for the blowout view.
-    const EXPAND_FACTOR = Math.max(3, 0.6 / selSpan);
-    const blowSpan = Math.min(selSpan * EXPAND_FACTOR, Math.PI * 5 / 6);
-    const blowT1   = midTheta - blowSpan / 2;
-    const blowT2   = midTheta + blowSpan / 2;
-
-    // Map an angle inside the selection to its expanded position.
-    function remap(theta) {
-      let t = theta - t1;
-      if (t < 0) t += 2 * Math.PI;
-      return blowT1 + (t / selSpan) * blowSpan;
-    }
-
-    function inSel(midAngle) {
-      let t = midAngle - t1;
-      if (t < 0) t += 2 * Math.PI;
-      return t >= 0 && t <= selSpan;
-    }
-
-    // Normalize two angle values relative to t1 to avoid seam-crossing clips.
-    function normalizeAnglePair(start, end) {
-      let s = start, e = end;
-      if (t1 > Math.PI && s < Math.PI) s += 2 * Math.PI;
-      if (t1 > Math.PI && e < Math.PI) e += 2 * Math.PI;
-      return [s, e];
-    }
-
-    const GAP     = 18;
-    const blowInner = outerR + GAP;
-    const REF_W   = 16;
-    const ANN_W   = annotActive ? 12 : 0;
-    const GEN_W   = Math.min(18, Math.max(5,
-      (outerR * 0.35 - REF_W - ANN_W) / Math.max(1, renderData.visibleGenomes.length)));
-    const blowOuter = blowInner + REF_W + ANN_W + renderData.visibleGenomes.length * GEN_W + 6;
-
-    // ── Connector fill (trapezoid joining main arc to blowout arc) ────────────
-    const normA = (a) => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-    function arcPt(r, a) {
-      const an = normA(a);
-      return { x: r * Math.sin(an), y: -r * Math.cos(an) };
-    }
-    const mL = arcPt(outerR, t1), mR = arcPt(outerR, t2);
-    const bL = arcPt(blowInner, blowT1), bR = arcPt(blowInner, blowT2);
-
-    ctx.fillStyle = 'rgba(250,204,21,0.05)';
-    ctx.beginPath();
-    ctx.moveTo(mL.x, mL.y);
-    // 1.3 pushes control points radially outward; 0.8 pulls inward for a gentle funnel.
-    ctx.bezierCurveTo(mL.x * 1.3, mL.y * 1.3, bL.x * 0.8, bL.y * 0.8, bL.x, bL.y);
-    ctx.lineTo(bR.x, bR.y);
-    ctx.bezierCurveTo(bR.x * 0.8, bR.y * 0.8, mR.x * 1.3, mR.y * 1.3, mR.x, mR.y);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.strokeStyle = 'rgba(250,204,21,0.4)';
-    ctx.lineWidth   = 1;
-    ctx.setLineDash([3, 3]);
-    ctx.beginPath();
-    ctx.moveTo(mL.x, mL.y);
-    ctx.bezierCurveTo(mL.x * 1.3, mL.y * 1.3, bL.x * 0.8, bL.y * 0.8, bL.x, bL.y);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(mR.x, mR.y);
-    ctx.bezierCurveTo(mR.x * 1.3, mR.y * 1.3, bR.x * 0.8, bR.y * 0.8, bR.x, bR.y);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // ── Background ────────────────────────────────────────────────────────────
-    const bgPath = makeArcPath(blowInner - 2, blowOuter + 2, blowT1, blowT2);
-    if (bgPath) {
-      ctx.fillStyle   = 'rgba(22,33,62,0.92)';
-      ctx.fill(new Path2D(bgPath));
-      ctx.strokeStyle = 'rgba(99,102,241,0.3)';
-      ctx.lineWidth   = 1;
-      ctx.stroke(new Path2D(bgPath));
-    }
-
-    // ── Reference ring slice ──────────────────────────────────────────────────
-    const refOuter = blowInner + REF_W;
-    ctx.fillStyle = '#6366f1';
-    for (const contig of renderData.contigs) {
-      const cs = (contig.cumStart / renderData.totalLength) * 2 * Math.PI;
-      const ce = ((contig.cumStart + contig.length) / renderData.totalLength) * 2 * Math.PI;
-      const [csn, cen] = normalizeAnglePair(cs, ce);
-      const clippedStart = Math.max(csn, t1);
-      const clippedEnd   = Math.min(cen, t2);
-      if (clippedEnd <= clippedStart) continue;
-      const pathStr = makeArcPath(blowInner, refOuter, remap(clippedStart), remap(clippedEnd));
-      if (pathStr) ctx.fill(new Path2D(pathStr));
-    }
-
-    // ── Annotation ring slice ─────────────────────────────────────────────────
-    const annBase = refOuter;
-    const annTop  = refOuter + ANN_W;
-    if (annotActive) {
-      for (const [geneId, geneInfo] of renderData.referenceGenes) {
-        if (!inSel(geneInfo.midAngle)) continue;
-        const color = renderData.geneAnnotColors.get(geneId);
-        if (!color) continue;
-        const [gsn, gen] = normalizeAnglePair(geneInfo.startAngle, geneInfo.endAngle);
-        const clippedStart = Math.max(gsn, t1);
-        const clippedEnd   = Math.min(gen, t2);
-        if (clippedEnd <= clippedStart) continue;
-        if (renderData.annotIsContinuous) {
-          const frac = renderData.geneAnnotBarFractions.get(geneId);
-          if (!frac) continue;
-          const pathStr = makeArcPath(annBase, annBase + frac * ANN_W, remap(clippedStart), remap(clippedEnd));
-          if (pathStr) { ctx.fillStyle = color; ctx.fill(new Path2D(pathStr)); }
-        } else {
-          const pathStr = makeArcPath(annBase, annTop, remap(clippedStart), remap(clippedEnd));
-          if (pathStr) { ctx.fillStyle = color; ctx.fill(new Path2D(pathStr)); }
-        }
-      }
-    }
-
-    // ── Genome ring slices ────────────────────────────────────────────────────
-    const genBase = annTop;
-    for (let i = 0; i < renderData.visibleGenomes.length; i++) {
-      const genome  = renderData.visibleGenomes[i];
-      const color   = renderData.genomeColors.get(genome) || renderData.colorScale(genome);
-      const rOuter  = genBase + (i + 1) * GEN_W - 1;
-      const rInner  = rOuter - GEN_W + 3;
-
-      const genomeGeneMap = renderData.genomeGenes.get(genome);
-      if (!genomeGeneMap) continue;
-
-      ctx.fillStyle = color;
-      const batch = new Path2D();
-      for (const [geneId, geneInfo] of renderData.referenceGenes) {
-        if (!genomeGeneMap.has(geneId)) continue;
-        if (!inSel(geneInfo.midAngle)) continue;
-        const [gsn, gen] = normalizeAnglePair(geneInfo.startAngle, geneInfo.endAngle);
-        const clippedStart = Math.max(gsn, t1);
-        const clippedEnd   = Math.min(gen, t2);
-        if (clippedEnd <= clippedStart) continue;
-        const pathStr = makeArcPath(rInner, rOuter, remap(clippedStart), remap(clippedEnd));
-        if (pathStr) batch.addPath(new Path2D(pathStr));
-      }
-      ctx.fill(batch);
-    }
-
-    // ── SVG gene labels (density cap: 30 labels max to prevent overcrowding) ──
-    const svgNS  = 'http://www.w3.org/2000/svg';
-    const labelR = blowOuter + 10;
-    let labelCount = 0;
-
-    for (const [geneId, geneInfo] of renderData.referenceGenes) {
-      if (!inSel(geneInfo.midAngle)) continue;
-      if (labelCount >= 30) break;
-
-      const { midAngle } = geneInfo;
-      let midN = midAngle - t1;
-      if (midN < 0) midN += 2 * Math.PI;
-      const midExpanded   = blowT1 + (midN / selSpan) * blowSpan;
-      const labelAngle    = normA(midExpanded);
-
-      const lx = cx + labelR * Math.sin(labelAngle);
-      const ly = cy - labelR * Math.cos(labelAngle);
-      let rotateDeg = (labelAngle * 180) / Math.PI;
-      if (labelAngle > Math.PI / 2 && labelAngle < 3 * Math.PI / 2) rotateDeg += 180;
-
-      const text = document.createElementNS(svgNS, 'text');
-      text.setAttribute('x', lx.toFixed(1));
-      text.setAttribute('y', ly.toFixed(1));
-      text.setAttribute('text-anchor', 'middle');
-      text.setAttribute('dominant-baseline', 'middle');
-      text.setAttribute('transform', `rotate(${rotateDeg.toFixed(1)},${lx.toFixed(1)},${ly.toFixed(1)})`);
-      text.setAttribute('font-size', '8');
-      text.setAttribute('font-family', 'system-ui,sans-serif');
-      text.setAttribute('fill', '#94a3b8');
-      text.textContent = geneId;
-      svgEl.appendChild(text);
-      labelCount++;
-    }
-  }
 
   // ─── Utilities ─────────────────────────────────────────────────────────────
 
@@ -641,5 +396,9 @@
 
   window.getLastGeometry = function () {
     return lastGeometry;
+  };
+
+  window.getLastRenderData = function () {
+    return lastRenderData;
   };
 })();

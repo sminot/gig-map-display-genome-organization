@@ -35,14 +35,6 @@ const GenomeAnnotationState = {
   domain:        [],          // unique category values for the color column
 };
 
-// ─── Selection State ──────────────────────────────────────────────────────────
-// Managed by selection.js.
-const SelectionState = {
-  selections: [],   // Array<{ id: number, theta1: number, theta2: number }>
-  dragState:  null, // { startTheta: number, currentTheta: number } | null
-  _nextId:    0,
-};
-
 // ─── Render Data (shape documentation) ───────────────────────────────────────
 // Produced by buildRenderData() in app.js, passed to drawVisualization().
 //
