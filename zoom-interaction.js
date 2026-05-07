@@ -42,6 +42,11 @@
   function handleWheel(e) {
     e.preventDefault();
     if (!window.ZoomState || !window.ZoomState.isHovering) return;
+    // When starting a fresh zoom-in, anchor the wedge at the current mouse position.
+    if (window.ZoomState._targetZoomLevel <= 1.01 && e.deltaY < 0) {
+      const canvas = getCanvas();
+      if (canvas) window.ZoomState.setFocusAngle(pointerToTheta(e, canvas));
+    }
     const cur = window.ZoomState.zoomLevel;
     window.ZoomState.setZoomLevel(e.deltaY < 0 ? cur * ZOOM_FACTOR : cur / ZOOM_FACTOR);
   }

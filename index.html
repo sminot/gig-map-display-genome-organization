@@ -44,6 +44,20 @@
           </div>
         </section>
 
+        <!-- URL loading -->
+        <div class="url-load-section">
+          <div class="url-load-row">
+            <span class="url-load-label">File URL</span>
+            <input type="text" id="data-url-input" class="url-load-input" placeholder="https://…/genomes.aln.csv.gz">
+            <button id="data-url-btn" class="btn-url">Load</button>
+          </div>
+          <div class="url-load-row">
+            <span class="url-load-label">Base URL</span>
+            <input type="text" id="base-url-input" class="url-load-input" placeholder="https://…/dataset/">
+            <button id="base-url-btn" class="btn-url">Apply</button>
+          </div>
+        </div>
+
         <!-- Loading indicator (hidden by default) -->
         <div id="loading-indicator" class="loading-indicator" aria-live="polite" aria-busy="true" hidden>
           <span class="spinner" aria-hidden="true"></span>
@@ -78,6 +92,12 @@
           <!-- Gene Annotation section -->
           <section class="control-section" aria-labelledby="annot-section-heading">
             <h2 class="control-section-heading" id="annot-section-heading">Gene Annotation</h2>
+
+            <!-- URL input for gene annotation -->
+            <div class="url-load-row" style="margin-bottom:6px">
+              <input type="text" id="gene-annot-url-input" class="url-load-input" placeholder="https://…/gene_annotations.csv">
+              <button id="gene-annot-url-btn" class="btn-url">Load URL</button>
+            </div>
 
             <!-- Compact upload zone -->
             <div
@@ -119,6 +139,12 @@
           <!-- Genome Annotation section -->
           <section class="control-section" aria-labelledby="genome-annot-section-heading">
             <h2 class="control-section-heading" id="genome-annot-section-heading">Genome Annotation</h2>
+
+            <!-- URL input for genome annotation -->
+            <div class="url-load-row" style="margin-bottom:6px">
+              <input type="text" id="genome-annot-url-input" class="url-load-input" placeholder="https://…/genome_annotations.csv">
+              <button id="genome-annot-url-btn" class="btn-url">Load URL</button>
+            </div>
 
             <!-- Compact upload zone -->
             <div
@@ -199,6 +225,20 @@
                 aria-label="Zoom wedge size as percent of full circle"
               />
               <span id="wedge-span-display" class="range-display">33%</span>
+            </div>
+            <div class="control-row">
+              <label for="wedge-gap-input" class="control-label">Gap</label>
+              <input
+                type="range"
+                id="wedge-gap-input"
+                class="range-control"
+                min="0"
+                max="60"
+                value="6"
+                step="1"
+                aria-label="Gap between main circle and wedge in pixels"
+              />
+              <span id="wedge-gap-display" class="range-display">6px</span>
             </div>
             <button id="reset-zoom-btn" class="btn-export" type="button" style="width:100%;margin-top:4px">Reset Zoom</button>
             <p class="control-hint">Hover over the circle and scroll to zoom in. The wedge shows the zoomed region.</p>

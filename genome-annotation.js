@@ -99,6 +99,12 @@
       dropZone.addEventListener('click', function () {
         if (fileInput) fileInput.click();
       });
+
+      if (fileInput) {
+        fileInput.addEventListener('click', function (e) {
+          e.stopPropagation();
+        });
+      }
     }
 
     if (fileInput) {
@@ -168,6 +174,7 @@
 
       // Update label
       if (labelEl) labelEl.textContent = file.name;
+      GenomeAnnotationState.loadedURL = null;
 
       // Notify the app
       if (typeof window.onGenomeAnnotationLoaded === 'function') {
@@ -182,7 +189,41 @@
     }
   }
 
-  window.loadGenomeAnnotationFile = loadGenomeAnnotationFile;
+  async function loadGenomeAnnotationFromURL(url) {
+    var errorEl = el('genome-annotation-error');
+    var labelEl = el('genome-annotation-file-label');
+    if (errorEl) { errorEl.hidden = true; errorEl.textContent = ''; }
+    try {
+      var text = await window.readURLAsText(url);
+      var result = Papa.parse(text, { header: true, dynamicTyping: true, skipEmptyLines: true, delimiter: '' });
+      if (!result.meta || !result.meta.fields || result.meta.fields.length < 1)
+        throw new Error('Could not detect columns in the genome annotation file.');
+      var fields   = result.meta.fields;
+      var idField  = fields[0];
+      var dataCols = fields.slice(1);
+      var rawData  = new Map();
+      for (var i = 0; i < result.data.length; i++) {
+        var row = result.data[i];
+        var genomeId = String(row[idField]);
+        if (genomeId) rawData.set(genomeId, row);
+      }
+      GenomeAnnotationState.rawData       = rawData;
+      GenomeAnnotationState.columns       = dataCols;
+      GenomeAnnotationState.colorColumn   = null;
+      GenomeAnnotationState.sortColumn    = null;
+      GenomeAnnotationState.sortAscending = true;
+      GenomeAnnotationState.scale         = null;
+      GenomeAnnotationState.domain        = [];
+      GenomeAnnotationState.loadedURL     = url;
+      if (labelEl) labelEl.textContent = url.split('/').pop();
+      if (typeof window.onGenomeAnnotationLoaded === 'function') window.onGenomeAnnotationLoaded();
+    } catch (err) {
+      if (errorEl) { errorEl.hidden = false; errorEl.textContent = err.message || String(err); }
+    }
+  }
+
+  window.loadGenomeAnnotationFile    = loadGenomeAnnotationFile;
+  window.loadGenomeAnnotationFromURL = loadGenomeAnnotationFromURL;
 
   // ─── 3. setGenomeColorColumn ──────────────────────────────────────────────────
 

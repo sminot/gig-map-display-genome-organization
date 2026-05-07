@@ -82,19 +82,58 @@ window.initFileUpload = initFileUpload;
 
 // ─── 2. loadFile ─────────────────────────────────────────────────────────────
 
+// Shared CSV parsing + AppState population. Called by both loadFile and loadFileFromURL.
+async function processMainCSVText(text) {
+  const result = Papa.parse(text, {
+    header:         true,
+    dynamicTyping:  true,
+    skipEmptyLines: true,
+  });
+
+  if (result.errors && result.errors.length > 0) {
+    const fatal = result.errors.find(
+      (err) => err.type === 'Delimiter' || err.type === 'Quotes'
+    );
+    if (fatal) throw new Error(`CSV parse error: ${fatal.message}`);
+  }
+
+  const numericFields = new Set([
+    'qstart', 'qend', 'qlen',
+    'sstart', 'send', 'slen',
+    'length', 'pident', 'coverage',
+  ]);
+
+  AppState.rows = result.data.map((raw) => {
+    const row = {};
+    for (const [key, value] of Object.entries(raw)) {
+      if (key === '' || key === undefined) continue;
+      row[key] = numericFields.has(key)
+        ? (typeof value === 'number' ? value : parseFloat(value))
+        : value;
+    }
+    return row;
+  });
+
+  const genomeSet = new Set(AppState.rows.map((r) => r.genome));
+  AppState.allGenomes = [...genomeSet].sort();
+
+  AppState.referenceGenome = AppState.allGenomes[0] ?? null;
+  AppState.visibleGenomes  = new Set(
+    AppState.allGenomes.filter((g) => g !== AppState.referenceGenome)
+  );
+}
+
 async function loadFile(file) {
   const loadingIndicator = el('loading-indicator');
   const controlsPanel    = el('controls-panel');
   const errorMessage     = el('error-message');
 
-  // Reset UI
   loadingIndicator.hidden = false;
   controlsPanel.hidden    = true;
   errorMessage.hidden     = true;
   errorMessage.textContent = '';
 
   try {
-    // ── Decompress ──────────────────────────────────────────────────────────
     if (typeof DecompressionStream === 'undefined') {
       throw new Error(
         'Your browser does not support gzip decompression. ' +
@@ -106,62 +145,11 @@ async function loadFile(file) {
     const decompressed = file.stream().pipeThrough(ds);
     const text         = await new Response(decompressed).text();
 
-    // ── Parse CSV ───────────────────────────────────────────────────────────
-    const result = Papa.parse(text, {
-      header:         true,
-      dynamicTyping:  true,
-      skipEmptyLines: true,
-    });
+    await processMainCSVText(text);
 
-    if (result.errors && result.errors.length > 0) {
-      // Surface the first meaningful parse error (non-fatal field-count
-      // mismatches are common; only abort on type "Delimiter" or "Quotes")
-      const fatal = result.errors.find(
-        (err) => err.type === 'Delimiter' || err.type === 'Quotes'
-      );
-      if (fatal) throw new Error(`CSV parse error: ${fatal.message}`);
-    }
-
-    // ── Map rows ────────────────────────────────────────────────────────────
-    // The CSV header names already match the row-object shape defined in
-    // data-contract.js; just drop the unnamed index column if present.
-    const numericFields = new Set([
-      'qstart', 'qend', 'qlen',
-      'sstart', 'send', 'slen',
-      'length', 'pident', 'coverage',
-    ]);
-
-    AppState.rows = result.data.map((raw) => {
-      const row = {};
-      for (const [key, value] of Object.entries(raw)) {
-        // Skip the unnamed index column (empty string key or purely numeric key
-        // that represents a row index, i.e. the key is "" or matches /^\d+$/)
-        if (key === '' || key === undefined) continue;
-
-        if (numericFields.has(key)) {
-          row[key] = typeof value === 'number' ? value : parseFloat(value);
-        } else {
-          row[key] = value;
-        }
-      }
-      return row;
-    });
-
-    // ── Extract unique genomes ───────────────────────────────────────────────
-    const genomeSet = new Set(AppState.rows.map((r) => r.genome));
-    AppState.allGenomes = [...genomeSet].sort();
-
-    // ── Set initial reference and visible genomes ────────────────────────────
-    AppState.referenceGenome = AppState.allGenomes[0] ?? null;
-    AppState.visibleGenomes  = new Set(
-      AppState.allGenomes.filter((g) => g !== AppState.referenceGenome)
-    );
-
-    // ── Notify controls.js ──────────────────────────────────────────────────
+    AppState.loadedDataURL = null;
     loadingIndicator.hidden = true;
-    if (typeof window.onDataLoaded === 'function') {
-      window.onDataLoaded();
-    }
+    if (typeof window.onDataLoaded === 'function') window.onDataLoaded();
 
   } catch (err) {
     loadingIndicator.hidden  = true;
@@ -170,7 +158,33 @@ async function loadFile(file) {
   }
 }
 
-window.loadFile = loadFile;
+async function loadFileFromURL(url) {
+  const loadingIndicator = el('loading-indicator');
+  const controlsPanel    = el('controls-panel');
+  const errorMessage     = el('error-message');
+
+  loadingIndicator.hidden = false;
+  controlsPanel.hidden    = true;
+  errorMessage.hidden     = true;
+  errorMessage.textContent = '';
+
+  try {
+    const text = await window.readURLAsText(url);
+    await processMainCSVText(text);
+
+    AppState.loadedDataURL = url;
+    loadingIndicator.hidden = true;
+    if (typeof window.onDataLoaded === 'function') window.onDataLoaded();
+
+  } catch (err) {
+    loadingIndicator.hidden  = true;
+    errorMessage.hidden      = false;
+    errorMessage.textContent = err.message || String(err);
+  }
+}
+
+window.loadFile        = loadFile;
+window.loadFileFromURL = loadFileFromURL;
 
 // ─── 3. buildRenderData ───────────────────────────────────────────────────────
 

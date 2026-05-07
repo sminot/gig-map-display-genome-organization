@@ -64,6 +64,15 @@
       dropZone.addEventListener('click', function () {
         if (fileInput) fileInput.click();
       });
+
+      // fileInput covers the drop zone (position:absolute;inset:0), so a direct
+      // click on the zone hits the input natively. Stop propagation to prevent
+      // the click from also bubbling up and triggering fileInput.click() again.
+      if (fileInput) {
+        fileInput.addEventListener('click', function (e) {
+          e.stopPropagation();
+        });
+      }
     }
 
     if (fileInput) {
@@ -132,6 +141,7 @@
 
       // Update label
       if (labelEl) labelEl.textContent = file.name;
+      GeneAnnotationState.loadedURL = null;
 
       // Notify the app
       if (typeof window.onGeneAnnotationLoaded === 'function') {
@@ -146,7 +156,42 @@
     }
   }
 
-  window.loadGeneAnnotationFile = loadGeneAnnotationFile;
+  async function loadGeneAnnotationFromURL(url) {
+    var errorEl = el('annotation-error');
+    var labelEl = el('annotation-file-label');
+    if (errorEl) { errorEl.hidden = true; errorEl.textContent = ''; }
+    try {
+      var text = await window.readURLAsText(url);
+      // Reuse the same parsing logic via a synthetic file-like flow.
+      // Build a Blob so we can delegate to the existing text-handling path.
+      var result = Papa.parse(text, { header: true, dynamicTyping: true, skipEmptyLines: true, delimiter: '' });
+      if (!result.meta || !result.meta.fields || result.meta.fields.length < 1)
+        throw new Error('Could not detect columns in the annotation file.');
+      var fields   = result.meta.fields;
+      var idField  = fields[0];
+      var dataCols = fields.slice(1);
+      var rawData  = new Map();
+      for (var i = 0; i < result.data.length; i++) {
+        var row = result.data[i];
+        var geneId = String(row[idField]);
+        if (geneId) rawData.set(geneId, row);
+      }
+      GeneAnnotationState.rawData      = rawData;
+      GeneAnnotationState.columns      = dataCols;
+      GeneAnnotationState.activeColumn = null;
+      GeneAnnotationState.columnType   = null;
+      GeneAnnotationState.scale        = null;
+      GeneAnnotationState.domain       = [];
+      GeneAnnotationState.loadedURL    = url;
+      if (labelEl) labelEl.textContent = url.split('/').pop();
+      if (typeof window.onGeneAnnotationLoaded === 'function') window.onGeneAnnotationLoaded();
+    } catch (err) {
+      if (errorEl) { errorEl.hidden = false; errorEl.textContent = err.message || String(err); }
+    }
+  }
+
+  window.loadGeneAnnotationFile    = loadGeneAnnotationFile;
+  window.loadGeneAnnotationFromURL = loadGeneAnnotationFromURL;
 
   // ─── 3. setGeneAnnotationColumn ───────────────────────────────────────────────
 

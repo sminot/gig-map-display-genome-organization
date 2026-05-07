@@ -171,7 +171,7 @@ void main() { fragColor = vColor; }
   function computeRingGeometry(rd, cx, cy) {
     const scale = window.ZoomState ? window.ZoomState.displayRadiusScale : 1;
     const outerRadius = Math.min(cx, cy) * 0.92 * scale;
-    const GAP = 6;
+    const GAP = window.ZoomState ? window.ZoomState.wedgeGap : 6;
     const blowInner = outerRadius + GAP;
     const ANN_W = rd.annotActive ? 12 : 0;
     const numGenomes = rd.visibleGenomes.length;

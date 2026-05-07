@@ -74,6 +74,10 @@
     // 2. Draw the main canvas content.
     offCtx.drawImage(canvas, 0, 0);
 
+    // 2b. Draw the WebGL zoom-wedge overlay (if visible).
+    var webglCanvas = getEl('webgl-canvas');
+    if (webglCanvas) offCtx.drawImage(webglCanvas, 0, 0);
+
     // 3. Overlay the SVG — only if it actually contains children.
     if (svg && svg.childElementCount > 0) {
       // Ensure the SVG carries explicit width/height so browsers render it
@@ -176,7 +180,17 @@
     var width = canvas.width;
     var height = canvas.height;
 
-    var canvasDataUrl = canvas.toDataURL('image/png');
+    // Composite main canvas + WebGL overlay into a single image for HTML export.
+    var exportOffscreen = document.createElement('canvas');
+    exportOffscreen.width = width;
+    exportOffscreen.height = height;
+    var exportCtx = exportOffscreen.getContext('2d');
+    exportCtx.fillStyle = '#1a1a2e';
+    exportCtx.fillRect(0, 0, width, height);
+    exportCtx.drawImage(canvas, 0, 0);
+    var webglCanvasHtml = getEl('webgl-canvas');
+    if (webglCanvasHtml) exportCtx.drawImage(webglCanvasHtml, 0, 0);
+    var canvasDataUrl = exportOffscreen.toDataURL('image/png');
 
     var svgContent = '';
     if (svgEl) {
