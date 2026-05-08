@@ -21,6 +21,12 @@
   // Cached d3 color scale — built once after data loads, reused for toggle dots.
   let colorScale = null;
 
+  // Snapshot of the URL the page was loaded with. applyURLParams always reads
+  // from this so that writeURLParams → history.replaceState calls (which happen
+  // before async annotation loads complete) cannot erase params that haven't
+  // been applied yet.
+  const initialURLSearch = location.search;
+
   // ─── URL query-param state ────────────────────────────────────────────────
 
   function writeURLParams() {
@@ -88,7 +94,7 @@
   window.writeURLParams = writeURLParams;
 
   function applyURLParams(scope) {
-    const params = new URLSearchParams(location.search);
+    const params = new URLSearchParams(initialURLSearch);
 
     if (scope === 'data') {
       const ref = params.get('ref');
@@ -265,6 +271,20 @@
     listEl.innerHTML = '';
     if (!GeneAnnotationState.categoryColumn) return;
 
+    // Count, per category, how many genes appear in the current reference genome.
+    const rd = window.getLastRenderData ? window.getLastRenderData() : null;
+    const refGenes = rd && rd.referenceGenes ? rd.referenceGenes : null;
+    const refCounts = new Map();
+    if (refGenes) {
+      for (const [geneId, row] of GeneAnnotationState.rawData) {
+        if (!refGenes.has(geneId)) continue;
+        const v = row[GeneAnnotationState.categoryColumn];
+        if (v === null || v === undefined || v === '') continue;
+        const s = String(v);
+        refCounts.set(s, (refCounts.get(s) || 0) + 1);
+      }
+    }
+
     const values = GeneAnnotationState.categoryValues;
     for (const val of values) {
       if (filter && !val.toLowerCase().includes(filter)) continue;
@@ -305,7 +325,13 @@
 
       const countSpan = document.createElement('span');
       countSpan.className = 'category-count';
-      countSpan.textContent = '(' + count + ')';
+      if (refGenes) {
+        const refCount = refCounts.get(val) || 0;
+        countSpan.textContent = '(' + refCount + ' / ' + count + ')';
+        countSpan.title = refCount + ' in reference / ' + count + ' total';
+      } else {
+        countSpan.textContent = '(' + count + ')';
+      }
 
       item.appendChild(cb);
       item.appendChild(swatch);
