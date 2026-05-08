@@ -36,33 +36,33 @@
    * Rebuild the color scale from the current colorColumn and palette.
    * Called whenever either changes.
    */
-  function rebuildColorScale() {
-    var colName = GenomeAnnotationState.colorColumn;
-    if (!colName) {
-      GenomeAnnotationState.scale  = null;
-      GenomeAnnotationState.domain = [];
-      return;
-    }
-
-    // Collect unique values for the active color column
-    var seen   = new Set();
-    var values = [];
-    GenomeAnnotationState.rawData.forEach(function (row) {
+  function _buildOrdinalScale(colName) {
+    if (!colName) return { scale: null, domain: [] };
+    var seen = new Set(), values = [];
+    GenomeAnnotationState.rawData.forEach(function(row) {
       var v = row[colName];
       if (v !== null && v !== undefined && v !== '') {
         var s = String(v);
-        if (!seen.has(s)) {
-          seen.add(s);
-          values.push(s);
-        }
+        if (!seen.has(s)) { seen.add(s); values.push(s); }
       }
     });
     values.sort();
+    return {
+      scale:  d3.scaleOrdinal(window.getPalette(GenomeAnnotationState.palette)).domain(values),
+      domain: values,
+    };
+  }
 
-    GenomeAnnotationState.domain = values;
-    GenomeAnnotationState.scale  = d3
-      .scaleOrdinal(window.getPalette(GenomeAnnotationState.palette))
-      .domain(values);
+  function rebuildColorScale() {
+    var r = _buildOrdinalScale(GenomeAnnotationState.colorColumn);
+    GenomeAnnotationState.scale  = r.scale;
+    GenomeAnnotationState.domain = r.domain;
+  }
+
+  function rebuildGroupScale() {
+    var r = _buildOrdinalScale(GenomeAnnotationState.groupColumn);
+    GenomeAnnotationState.groupScale  = r.scale;
+    GenomeAnnotationState.groupDomain = r.domain;
   }
 
   // ─── 1. initGenomeAnnotationUpload ───────────────────────────────────────────
@@ -124,101 +124,75 @@
 
   window.initGenomeAnnotationUpload = initGenomeAnnotationUpload;
 
-  // ─── 2. loadGenomeAnnotationFile ─────────────────────────────────────────────
+  // ─── 2. loadGenomeAnnotationFile / loadGenomeAnnotationFromURL ───────────────
 
-  async function loadGenomeAnnotationFile(file) {
-    var errorEl = el('genome-annotation-error');
-    var labelEl = el('genome-annotation-file-label');
+  function _applyGenomeAnnotationText(text, label, loadedURL) {
+    var result = Papa.parse(text, {
+      header:         true,
+      dynamicTyping:  true,
+      skipEmptyLines: true,
+      delimiter:      '',
+      transform:      function (v) { return typeof v === 'string' ? v.trim() : v; },
+    });
 
-    if (errorEl) {
-      errorEl.hidden      = true;
-      errorEl.textContent = '';
+    if (!result.meta || !result.meta.fields || result.meta.fields.length < 1) {
+      throw new Error('Could not detect columns in the genome annotation file.');
     }
 
-    try {
-      var text = await window.readFileAsText(file);
+    var fields   = result.meta.fields;
+    var idField  = fields[0];
+    var dataCols = fields.slice(1);
 
-      var result = Papa.parse(text, {
-        header:         true,
-        dynamicTyping:  true,
-        skipEmptyLines: true,
-        delimiter:      '',
-      });
+    var rawData = new Map();
+    for (var i = 0; i < result.data.length; i++) {
+      var row      = result.data[i];
+      var rawId    = row[idField];
+      if (rawId === null || rawId === undefined) continue;
+      var genomeId = String(rawId).trim();
+      if (!genomeId) continue;
+      rawData.set(genomeId, row);
+    }
 
-      if (!result.meta || !result.meta.fields || result.meta.fields.length < 1) {
-        throw new Error('Could not detect columns in the genome annotation file.');
-      }
+    GenomeAnnotationState.rawData       = rawData;
+    GenomeAnnotationState.columns       = dataCols;
+    GenomeAnnotationState.colorColumn   = null;
+    GenomeAnnotationState.groupColumn   = null;
+    GenomeAnnotationState.groupScale    = null;
+    GenomeAnnotationState.groupDomain   = [];
+    GenomeAnnotationState.labelColumn   = null;
+    GenomeAnnotationState.sortColumn    = null;
+    GenomeAnnotationState.sortAscending = true;
+    GenomeAnnotationState.scale         = null;
+    GenomeAnnotationState.domain        = [];
+    GenomeAnnotationState.loadedURL     = loadedURL;
 
-      var fields   = result.meta.fields;
-      var idField  = fields[0];
-      var dataCols = fields.slice(1);
+    var labelEl = el('genome-annotation-file-label');
+    if (labelEl) labelEl.textContent = label;
 
-      // Build rawData map: genomeId → row object
-      var rawData = new Map();
-      for (var i = 0; i < result.data.length; i++) {
-        var row      = result.data[i];
-        var genomeId = String(row[idField]);
-        if (genomeId) rawData.set(genomeId, row);
-      }
-
-      // Commit to shared state
-      GenomeAnnotationState.rawData  = rawData;
-      GenomeAnnotationState.columns  = dataCols;
-
-      // Reset column-level state from any previous load
-      GenomeAnnotationState.colorColumn   = null;
-      GenomeAnnotationState.sortColumn    = null;
-      GenomeAnnotationState.sortAscending = true;
-      GenomeAnnotationState.scale         = null;
-      GenomeAnnotationState.domain        = [];
-
-      // Update label
-      if (labelEl) labelEl.textContent = file.name;
-      GenomeAnnotationState.loadedURL = null;
-
-      // Notify the app
-      if (typeof window.onGenomeAnnotationLoaded === 'function') {
-        window.onGenomeAnnotationLoaded();
-      }
-
-    } catch (err) {
-      if (errorEl) {
-        errorEl.hidden      = false;
-        errorEl.textContent = err.message || String(err);
-      }
+    if (typeof window.onGenomeAnnotationLoaded === 'function') {
+      window.onGenomeAnnotationLoaded();
     }
   }
 
-  async function loadGenomeAnnotationFromURL(url) {
+  async function loadGenomeAnnotationFile(file) {
     var errorEl = el('genome-annotation-error');
-    var labelEl = el('genome-annotation-file-label');
     if (errorEl) { errorEl.hidden = true; errorEl.textContent = ''; }
     try {
-      var text = await window.readURLAsText(url);
-      var result = Papa.parse(text, { header: true, dynamicTyping: true, skipEmptyLines: true, delimiter: '' });
-      if (!result.meta || !result.meta.fields || result.meta.fields.length < 1)
-        throw new Error('Could not detect columns in the genome annotation file.');
-      var fields   = result.meta.fields;
-      var idField  = fields[0];
-      var dataCols = fields.slice(1);
-      var rawData  = new Map();
-      for (var i = 0; i < result.data.length; i++) {
-        var row = result.data[i];
-        var genomeId = String(row[idField]);
-        if (genomeId) rawData.set(genomeId, row);
-      }
-      GenomeAnnotationState.rawData       = rawData;
-      GenomeAnnotationState.columns       = dataCols;
-      GenomeAnnotationState.colorColumn   = null;
-      GenomeAnnotationState.sortColumn    = null;
-      GenomeAnnotationState.sortAscending = true;
-      GenomeAnnotationState.scale         = null;
-      GenomeAnnotationState.domain        = [];
-      GenomeAnnotationState.loadedURL     = url;
-      if (labelEl) labelEl.textContent = url.split('/').pop();
-      if (typeof window.onGenomeAnnotationLoaded === 'function') window.onGenomeAnnotationLoaded();
+      var text = await window.readFileAsText(file);
+      _applyGenomeAnnotationText(text, file.name, null);
     } catch (err) {
       if (errorEl) { errorEl.hidden = false; errorEl.textContent = err.message || String(err); }
+    }
+  }
+
+  async function loadGenomeAnnotationFromURL(url, silent) {
+    var errorEl = el('genome-annotation-error');
+    if (!silent && errorEl) { errorEl.hidden = true; errorEl.textContent = ''; }
+    try {
+      var text = await window.readURLAsText(url);
+      _applyGenomeAnnotationText(text, url.split('/').pop(), url);
+    } catch (err) {
+      if (!silent && errorEl) { errorEl.hidden = false; errorEl.textContent = err.message || String(err); }
     }
   }
 
@@ -238,7 +212,26 @@
 
   window.setGenomeColorColumn = setGenomeColorColumn;
 
-  // ─── 4. setGenomeSortColumn ───────────────────────────────────────────────────
+  // ─── 4. setGenomeGroupColumn ─────────────────────────────────────────────────
+
+  function setGenomeGroupColumn(colName) {
+    GenomeAnnotationState.groupColumn = colName || null;
+    rebuildGroupScale();
+    if (typeof window.onStateChanged === 'function') window.onStateChanged();
+  }
+
+  window.setGenomeGroupColumn = setGenomeGroupColumn;
+
+  // ─── 5. setGenomeLabelColumn ─────────────────────────────────────────────────
+
+  function setGenomeLabelColumn(colName) {
+    GenomeAnnotationState.labelColumn = colName || null;
+    if (typeof window.onStateChanged === 'function') window.onStateChanged();
+  }
+
+  window.setGenomeLabelColumn = setGenomeLabelColumn;
+
+  // ─── 6. setGenomeSortColumn ───────────────────────────────────────────────────
 
   function setGenomeSortColumn(colName, ascending) {
     GenomeAnnotationState.sortColumn    = colName;
@@ -251,7 +244,7 @@
 
   window.setGenomeSortColumn = setGenomeSortColumn;
 
-  // ─── 5. setGenomePalette ──────────────────────────────────────────────────────
+  // ─── 7. setGenomePalette ──────────────────────────────────────────────────────
 
   function setGenomePalette(paletteName) {
     GenomeAnnotationState.palette = paletteName;
@@ -260,6 +253,7 @@
     if (GenomeAnnotationState.colorColumn) {
       rebuildColorScale();
     }
+    if (GenomeAnnotationState.groupColumn) { rebuildGroupScale(); }
 
     if (typeof window.onStateChanged === 'function') {
       window.onStateChanged();
@@ -268,17 +262,22 @@
 
   window.setGenomePalette = setGenomePalette;
 
-  // ─── 6. clearGenomeAnnotation ─────────────────────────────────────────────────
+  // ─── 8. clearGenomeAnnotation ─────────────────────────────────────────────────
 
   function clearGenomeAnnotation() {
     GenomeAnnotationState.rawData       = new Map();
     GenomeAnnotationState.columns       = [];
     GenomeAnnotationState.colorColumn   = null;
+    GenomeAnnotationState.groupColumn   = null;
+    GenomeAnnotationState.groupScale    = null;
+    GenomeAnnotationState.groupDomain   = [];
+    GenomeAnnotationState.labelColumn   = null;
     GenomeAnnotationState.sortColumn    = null;
     GenomeAnnotationState.sortAscending = true;
     GenomeAnnotationState.palette       = 'Tableau10';
     GenomeAnnotationState.scale         = null;
     GenomeAnnotationState.domain        = [];
+    GenomeAnnotationState.loadedURL     = null;
 
     if (typeof window.onStateChanged === 'function') {
       window.onStateChanged();
@@ -287,27 +286,41 @@
 
   window.clearGenomeAnnotation = clearGenomeAnnotation;
 
-  // ─── 7. getGenomeAnnotationColor ─────────────────────────────────────────────
+  // ─── 9. getGenomeAnnotationColor ─────────────────────────────────────────────
 
   function getGenomeAnnotationColor(genomeId) {
-    if (!GenomeAnnotationState.colorColumn || !GenomeAnnotationState.scale) {
-      return null;
+    if (GenomeAnnotationState.groupColumn && GenomeAnnotationState.groupScale) {
+      var row = GenomeAnnotationState.rawData.get(String(genomeId));
+      if (!row) return null;
+      var val = row[GenomeAnnotationState.groupColumn];
+      if (val === null || val === undefined || val === '') return null;
+      return GenomeAnnotationState.groupScale(String(val));
     }
-
+    if (!GenomeAnnotationState.colorColumn || !GenomeAnnotationState.scale) return null;
     var row = GenomeAnnotationState.rawData.get(String(genomeId));
     if (!row) return null;
-
     var value = row[GenomeAnnotationState.colorColumn];
     if (value === null || value === undefined || value === '') return null;
-
     return GenomeAnnotationState.scale(String(value));
   }
 
   window.getGenomeAnnotationColor = getGenomeAnnotationColor;
 
-  // ─── 8. getGenomeSortedOrder ──────────────────────────────────────────────────
+  // ─── 10. getGenomeSortedOrder ────────────────────────────────────────────────
 
   function getGenomeSortedOrder(genomes) {
+    var groupCol = GenomeAnnotationState.groupColumn;
+    if (groupCol) {
+      var rawData = GenomeAnnotationState.rawData;
+      return genomes.slice().sort(function(a, b) {
+        var rowA = rawData.get(String(a));
+        var rowB = rawData.get(String(b));
+        var gA = (rowA && rowA[groupCol] != null) ? String(rowA[groupCol]) : '';
+        var gB = (rowB && rowB[groupCol] != null) ? String(rowB[groupCol]) : '';
+        var cmp = gA.localeCompare(gB);
+        return cmp !== 0 ? cmp : String(a).localeCompare(String(b));
+      });
+    }
     if (!GenomeAnnotationState.sortColumn) {
       // No sort column set — return alphabetical order (matching app.js default)
       return genomes.slice().sort();
@@ -345,32 +358,32 @@
 
   window.getGenomeSortedOrder = getGenomeSortedOrder;
 
-  // ─── 9. renderGenomeAnnotationLegend ─────────────────────────────────────────
+  // ─── 11. renderGenomeAnnotationLegend ────────────────────────────────────────
 
   function renderGenomeAnnotationLegend() {
     var legendEl = el('genome-annotation-legend');
     if (!legendEl) return;
 
-    // Clear existing content
     legendEl.innerHTML = '';
 
-    if (!GenomeAnnotationState.colorColumn || !GenomeAnnotationState.scale) {
-      return;
-    }
+    var useGroup    = !!(GenomeAnnotationState.groupColumn && GenomeAnnotationState.groupScale);
+    var legendCol   = useGroup ? GenomeAnnotationState.groupColumn  : GenomeAnnotationState.colorColumn;
+    var legendScale = useGroup ? GenomeAnnotationState.groupScale   : GenomeAnnotationState.scale;
+    var legendDomain = useGroup ? GenomeAnnotationState.groupDomain : GenomeAnnotationState.domain;
 
-    // Title
+    if (!legendCol || !legendScale) { legendEl.innerHTML = ''; return; }
+
     var title = document.createElement('div');
     title.className   = 'legend-title';
-    title.textContent = GenomeAnnotationState.colorColumn;
+    title.textContent = legendCol;
     legendEl.appendChild(title);
 
     var itemsWrapper = document.createElement('div');
     itemsWrapper.className = 'legend-items';
 
-    var domain = GenomeAnnotationState.domain;
-    for (var i = 0; i < domain.length; i++) {
-      var val   = domain[i];
-      var color = GenomeAnnotationState.scale(val);
+    for (var i = 0; i < legendDomain.length; i++) {
+      var val   = legendDomain[i];
+      var color = legendScale(val);
 
       var row = document.createElement('div');
       row.className = 'legend-item';
