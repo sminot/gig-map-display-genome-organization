@@ -74,17 +74,17 @@
     const referenceRingOuter = outerRadius;
     const referenceRingInner = outerRadius - referenceRingWidth;
 
-    // Annotation ring sits just inside the reference ring when active.
-    const ANNOT_WIDTH  = 14;
-    const ANNOT_GAP    = 3;
-    const annotActive  = renderData.annotActive;
-    const annotRingOuter = annotActive ? referenceRingInner - ANNOT_GAP : referenceRingInner;
-    const annotRingInner = annotActive ? annotRingOuter - ANNOT_WIDTH  : referenceRingInner;
+    // Annotation track sits just outside the reference ring when active.
+    const ANNOT_WIDTH    = 20;
+    const ANNOT_GAP      = 4;
+    const annotActive    = renderData.annotActive;
+    const annotRingInner = annotActive ? referenceRingOuter + ANNOT_GAP : referenceRingOuter;
+    const annotRingOuter = annotActive ? annotRingInner + ANNOT_WIDTH   : referenceRingOuter;
+    // Genome rings are unaffected by annotation track (annotation is outermost).
 
-    const genomeRingStart = annotActive ? annotRingInner : referenceRingInner;
-    const annotReserved   = annotActive ? ANNOT_WIDTH + ANNOT_GAP : 0;
-
-    let geneRingWidth = (outerRadius - referenceRingWidth - annotReserved - 20) / numGenomes;
+    // Genome rings fill inward from the reference ring, unaffected by annotation track.
+    const genomeRingStart = referenceRingInner;
+    let geneRingWidth = (outerRadius - referenceRingWidth - 20) / numGenomes;
     geneRingWidth = Math.min(geneRingWidth, 20);
 
     function genomeRingBounds(i) {
@@ -111,6 +111,7 @@
       return arcGen({ innerRadius, outerRadius, startAngle, endAngle });
     }
 
+
     // ── Draw reference contig ring ─────────────────────────────────────────
 
     ctx.save();
@@ -129,11 +130,6 @@
       if (pathStr) {
         ctx.fill(new Path2D(pathStr));
       }
-    }
-
-    // ── Draw gene annotation ring ─────────────────────────────────────────
-    if (annotActive) {
-      drawAnnotationRing(ctx, renderData, annotRingInner, annotRingOuter, makeArcPath);
     }
 
     // ── Draw genome rings ─────────────────────────────────────────────────
@@ -164,12 +160,17 @@
       ctx.fill(batchPath);
     }
 
+    // ── Draw gene annotation track (outside reference ring) ───────────────
+    if (annotActive) {
+      drawAnnotationRing(ctx, renderData, annotRingInner, annotRingOuter, makeArcPath);
+    }
+
     ctx.restore();
 
     // ── Draw contig labels (SVG overlay) ──────────────────────────────────
 
     const svgNS = 'http://www.w3.org/2000/svg';
-    const labelRadius = referenceRingOuter + 12;
+    const labelRadius = (annotActive ? annotRingOuter : referenceRingOuter) + 12;
 
     for (const contig of renderData.contigs) {
       if (contig.length < 50000) continue; // skip contigs shorter than 50 kbp — label would be too cramped
@@ -242,24 +243,33 @@
 
     // ── Determine ring (wedge or main circle) ─────────────────────────────
 
+    // Distance from r to band [lo, hi] — 0 when inside the band.
+    function bandDist(radius, lo, hi) {
+      return radius < lo ? lo - radius : (radius > hi ? radius - hi : 0);
+    }
+
+    // Snap radius: cursor snaps to the nearest ring within this many pixels.
+    const SNAP_PX = 12;
+
     let hitGenome       = null;
     let hitIsReference  = false;
     let hitIsAnnotation = false;
     let searchAngle     = theta; // angle used for gene hit-test
 
-    const zs     = window.ZoomState;
-    const WEDGE_GAP  = window.ZoomState ? window.ZoomState.wedgeGap : 6;
+    const zs         = window.ZoomState;
+    const WEDGE_GAP  = zs ? zs.wedgeGap : 6;
     const blowInner  = referenceRingOuter + WEDGE_GAP;
 
-    if (zs && zs.zoomLevel > 1.05 && r >= blowInner - 2) {
+    if (zs && zs.zoomLevel > 1.05 && r >= blowInner - SNAP_PX) {
       // ── Wedge region ────────────────────────────────────────────────────
-      const ANN_W    = lastRenderData.annotActive ? 12 : 0;
-      const numG     = lastRenderData.visibleGenomes.length;
-      const GEN_W    = Math.min(18, Math.max(5,
-        (referenceRingOuter * 0.35 - ANN_W) / Math.max(1, numG)));
-      const blowOuter = blowInner + ANN_W + numG * GEN_W + 6;
+      const R_hit     = Math.min(canvas.width, canvas.height) / 2;
+      const blowOuter = R_hit * 0.97;
+      const available = Math.max(0, blowOuter - blowInner);
+      const ANN_W     = lastRenderData.annotActive ? Math.min(12, available * 0.25) : 0;
+      const numG      = lastRenderData.visibleGenomes.length;
+      const GEN_W     = numG > 0 ? (available - ANN_W) / numG : 0;
 
-      if (r > blowOuter + 5) { hideTooltip(); return; }
+      if (r > blowOuter + SNAP_PX) { hideTooltip(); return; }
 
       // Check angular bounds.
       const wedgeHalfSpan = zs.wedgeSpan * Math.PI;
@@ -274,36 +284,58 @@
       genomeAngle = ((genomeAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
       searchAngle = genomeAngle;
 
-      // Identify which ring band within the wedge.
-      if (lastRenderData.annotActive && ANN_W > 0 && r >= blowInner && r < blowInner + ANN_W) {
-        hitIsAnnotation = true;
-      } else {
-        for (let i = 0; i < lastRenderData.visibleGenomes.length; i++) {
-          const gInner = blowInner + ANN_W + i * GEN_W;
-          const gOuter = gInner + GEN_W - 2;
-          if (r >= gInner && r <= gOuter) {
-            hitGenome = lastRenderData.visibleGenomes[i];
-            break;
-          }
+      // Snap to the nearest wedge ring band within SNAP_PX.
+      // Annotation is always outermost (after genome rings).
+      const annStart = blowInner + numG * GEN_W;
+
+      let bestDist = SNAP_PX;
+      for (let i = 0; i < lastRenderData.visibleGenomes.length; i++) {
+        const gInner = blowInner + i * GEN_W;
+        const gOuter = gInner + GEN_W - 1;
+        const d = bandDist(r, gInner, gOuter);
+        if (d < bestDist) {
+          bestDist = d;
+          hitGenome = lastRenderData.visibleGenomes[i];
+          hitIsAnnotation = false;
+        }
+      }
+      if (lastRenderData.annotActive && ANN_W > 0) {
+        const d = bandDist(r, annStart, annStart + ANN_W);
+        if (d < bestDist) {
+          hitIsAnnotation = true;
+          hitGenome = null;
         }
       }
 
       if (!hitGenome && !hitIsAnnotation) { hideTooltip(); return; }
 
     } else {
-      // ── Main circle rings ────────────────────────────────────────────────
-      if (r >= referenceRingInner && r <= referenceRingOuter) {
+      // ── Main circle rings — snap to nearest band within SNAP_PX ──────────
+      let bestDist = SNAP_PX;
+
+      const dRef = bandDist(r, referenceRingInner, referenceRingOuter);
+      if (dRef < bestDist) {
+        bestDist = dRef;
         hitIsReference = true;
-      } else if (lastRenderData.annotActive &&
-                 r >= annotRingInner && r <= annotRingOuter) {
-        hitIsAnnotation = true;
-      } else if (r < referenceRingInner) {
-        for (let i = 0; i < lastRenderData.visibleGenomes.length; i++) {
-          const { outer, inner } = genomeRingBounds(i);
-          if (r >= inner && r <= outer) {
-            hitGenome = lastRenderData.visibleGenomes[i];
-            break;
-          }
+      }
+
+      if (lastRenderData.annotActive) {
+        const dAnn = bandDist(r, annotRingInner, annotRingOuter);
+        if (dAnn < bestDist) {
+          bestDist = dAnn;
+          hitIsReference = false;
+          hitIsAnnotation = true;
+        }
+      }
+
+      for (let i = 0; i < lastRenderData.visibleGenomes.length; i++) {
+        const { outer, inner } = genomeRingBounds(i);
+        const dG = bandDist(r, inner, outer);
+        if (dG < bestDist) {
+          bestDist = dG;
+          hitIsReference = false;
+          hitIsAnnotation = false;
+          hitGenome = lastRenderData.visibleGenomes[i];
         }
       }
 
@@ -313,24 +345,44 @@
       }
     }
 
-    // ── Determine gene arc ────────────────────────────────────────────────
+    // ── Snap to nearest gene arc by angle (~3° tolerance) ─────────────────
+
+    const ANGLE_SNAP = 0.05; // radians ≈ 3°
 
     let hitGeneId   = null;
     let hitGeneInfo = null;
+    let bestAngleDist = ANGLE_SNAP;
 
     for (const [geneId, geneInfo] of lastRenderData.referenceGenes) {
       const { startAngle, endAngle } = geneInfo;
       if (endAngle <= startAngle) continue;
 
-      let sa = startAngle;
-      let ea = endAngle;
-      if (sa < 0) sa += 2 * Math.PI;
-      if (ea < 0) ea += 2 * Math.PI;
+      let sa = startAngle < 0 ? startAngle + 2 * Math.PI : startAngle;
+      let ea = endAngle   < 0 ? endAngle   + 2 * Math.PI : endAngle;
 
+      let d;
       if (sa <= ea) {
-        if (searchAngle >= sa && searchAngle <= ea) { hitGeneId = geneId; hitGeneInfo = geneInfo; break; }
+        if (searchAngle >= sa && searchAngle <= ea) {
+          d = 0;
+        } else {
+          const dSa = Math.min(Math.abs(searchAngle - sa), 2 * Math.PI - Math.abs(searchAngle - sa));
+          const dEa = Math.min(Math.abs(searchAngle - ea), 2 * Math.PI - Math.abs(searchAngle - ea));
+          d = Math.min(dSa, dEa);
+        }
       } else {
-        if (searchAngle >= sa || searchAngle <= ea) { hitGeneId = geneId; hitGeneInfo = geneInfo; break; }
+        if (searchAngle >= sa || searchAngle <= ea) {
+          d = 0;
+        } else {
+          const dSa = Math.min(Math.abs(searchAngle - sa), 2 * Math.PI - Math.abs(searchAngle - sa));
+          const dEa = Math.min(Math.abs(searchAngle - ea), 2 * Math.PI - Math.abs(searchAngle - ea));
+          d = Math.min(dSa, dEa);
+        }
+      }
+
+      if (d < bestAngleDist) {
+        bestAngleDist = d;
+        hitGeneId   = geneId;
+        hitGeneInfo = geneInfo;
       }
     }
 
@@ -364,20 +416,64 @@
     const tooltip = document.getElementById('tooltip');
     if (!tooltip) return;
 
+    // Gene name row (from label column if set)
+    let geneNameRow = '';
+    const GAS = window.GeneAnnotationState;
+    if (GAS && GAS.labelColumn && GAS.rawData) {
+      const geneAnnotRow = GAS.rawData.get(hitGeneId);
+      if (geneAnnotRow) {
+        const nameVal = geneAnnotRow[GAS.labelColumn];
+        if (nameVal !== null && nameVal !== undefined && nameVal !== '') {
+          geneNameRow = `<div class="tooltip-row"><span class="tooltip-label">Name:</span><span class="tooltip-value">${escapeHtml(String(nameVal))}</span></div>`;
+        }
+      }
+    }
+
+    // Genome name row (from genome annotation label column if set)
+    let genomeNameRow = '';
+    let genomeExtraRows = '';
+    const GeAS = window.GenomeAnnotationState;
+    if (hitGenome && GeAS && GeAS.rawData) {
+      const genomeAnnotRow = GeAS.rawData.get(String(hitGenome));
+      if (genomeAnnotRow) {
+        if (GeAS.labelColumn) {
+          const nameVal = genomeAnnotRow[GeAS.labelColumn];
+          if (nameVal !== null && nameVal !== undefined && nameVal !== '') {
+            genomeNameRow = `<div class="tooltip-row"><span class="tooltip-label">Name:</span><span class="tooltip-value">${escapeHtml(String(nameVal))}</span></div>`;
+          }
+        }
+        if (GeAS.tooltipColumns && GeAS.tooltipColumns.length > 0) {
+          for (const col of GeAS.tooltipColumns) {
+            const val = genomeAnnotRow[col];
+            if (val !== null && val !== undefined && val !== '') {
+              genomeExtraRows += `<div class="tooltip-row"><span class="tooltip-label">${escapeHtml(col)}:</span><span class="tooltip-value">${escapeHtml(String(val))}</span></div>`;
+            }
+          }
+        }
+      }
+    }
+
     tooltip.innerHTML =
+      geneNameRow +
       `<div class="tooltip-row"><span class="tooltip-label">Gene:</span><span class="tooltip-value">${escapeHtml(hitGeneId)}</span></div>` +
+      genomeNameRow +
       `<div class="tooltip-row"><span class="tooltip-label">Genome:</span><span class="tooltip-value">${escapeHtml(genomeName)}</span></div>` +
+      genomeExtraRows +
       `<div class="tooltip-row"><span class="tooltip-label">Position:</span><span class="tooltip-value">${escapeHtml(position)}</span></div>` +
       `<div class="tooltip-row"><span class="tooltip-label">Identity:</span><span class="tooltip-value">${escapeHtml(pidentStr)}</span></div>` +
       `<div class="tooltip-row"><span class="tooltip-label">Coverage:</span><span class="tooltip-value">${escapeHtml(coverageStr)}</span></div>`;
 
-    // Append annotation column value whenever an active column is set.
-    if (lastRenderData.annotActive && lastRenderData.annotColumnName) {
-      const annotVal = lastRenderData.geneAnnotValues.get(hitGeneId);
-      if (annotVal != null) {
-        tooltip.innerHTML +=
-          `<div class="tooltip-row"><span class="tooltip-label">${escapeHtml(lastRenderData.annotColumnName)}:</span>` +
-          `<span class="tooltip-value">${escapeHtml(String(annotVal))}</span></div>`;
+    // Show category if gene annotation is active
+    if (lastRenderData.annotActive && GAS && GAS.categoryColumn) {
+      const row = GAS.rawData ? GAS.rawData.get(hitGeneId) : null;
+      if (row) {
+        const catVal = row[GAS.categoryColumn];
+        if (catVal !== null && catVal !== undefined && catVal !== '') {
+          const isHighlighted = lastRenderData.geneAnnotColors && lastRenderData.geneAnnotColors.has(hitGeneId);
+          tooltip.innerHTML +=
+            `<div class="tooltip-row"><span class="tooltip-label">${escapeHtml(GAS.categoryColumn)}:</span>` +
+            `<span class="tooltip-value" style="${isHighlighted ? 'color:' + lastRenderData.geneAnnotColors.get(hitGeneId) : ''}">${escapeHtml(String(catVal))}</span></div>`;
+        }
       }
     }
 
@@ -394,28 +490,43 @@
   // ─── Private drawing helpers ───────────────────────────────────────────────
 
   function drawAnnotationRing(ctx, renderData, innerR, outerR, makeArcPath) {
+    // Dim background for the full track width.
+    const bgPath = makeArcPath(innerR, outerR, 0, 2 * Math.PI);
+    if (bgPath) { ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fill(new Path2D(bgPath)); }
+
+    const isArrows = renderData.annotDisplayMode === 'arrows';
+
     for (const [geneId, geneInfo] of renderData.referenceGenes) {
       const { startAngle, endAngle } = geneInfo;
       if (endAngle <= startAngle) continue;
-
       const color = renderData.geneAnnotColors.get(geneId);
       if (!color) continue;
 
-      if (renderData.annotIsContinuous) {
-        const frac = renderData.geneAnnotBarFractions.get(geneId);
-        if (!frac) continue;
-        const barHeight = frac * (outerR - innerR);
-        const pathStr = makeArcPath(outerR - barHeight, outerR, startAngle, endAngle);
-        if (pathStr) {
-          ctx.fillStyle = color;
-          ctx.fill(new Path2D(pathStr));
-        }
+      if (isArrows) {
+        // Draw inward-pointing triangle centered on gene midpoint
+        const midAngle = (startAngle + endAngle) / 2;
+        const theta = midAngle - Math.PI / 2;
+        const cos = Math.cos(theta);
+        const sin = Math.sin(theta);
+        const midR = (innerR + outerR) / 2;
+        const geneSpanPx = midR * Math.abs(endAngle - startAngle);
+        const halfW = Math.max(3, Math.min(geneSpanPx / 2, (outerR - innerR) * 0.5));
+        const tipX   = cos * (innerR + 1);
+        const tipY   = sin * (innerR + 1);
+        const baseX  = cos * outerR;
+        const baseY  = sin * outerR;
+        const perpX  = -sin * halfW;
+        const perpY  =  cos * halfW;
+        ctx.beginPath();
+        ctx.moveTo(baseX + perpX, baseY + perpY);
+        ctx.lineTo(baseX - perpX, baseY - perpY);
+        ctx.lineTo(tipX, tipY);
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
       } else {
         const pathStr = makeArcPath(innerR, outerR, startAngle, endAngle);
-        if (pathStr) {
-          ctx.fillStyle = color;
-          ctx.fill(new Path2D(pathStr));
-        }
+        if (pathStr) { ctx.fillStyle = color; ctx.fill(new Path2D(pathStr)); }
       }
     }
   }

@@ -87,8 +87,10 @@ void main() { fragColor = vColor; }
   let indVAO = null;
   let indBuffer = null;
 
-  // Track displayRadiusScale changes to trigger canvas redraws
+  // Track animated values to trigger canvas redraws when they change
   let lastDisplayScale = 1;
+  let lastFocusAngle   = 0;
+  let lastZoomLevel    = 1;
 
   // Attribute / uniform locations
   let locs = {};
@@ -167,18 +169,23 @@ void main() { fragColor = vColor; }
   }
 
   // ── Ring geometry helper ──────────────────────────────────────────────────
+  //
+  // In this model the wedge outer edge is always fixed at R*0.97 (max viewport).
+  // The wedge height slider controls displayRadiusScale (circle size), which
+  // determines how much radial space is available for the rings.
 
   function computeRingGeometry(rd, cx, cy) {
+    const R = Math.min(cx, cy);
     const scale = window.ZoomState ? window.ZoomState.displayRadiusScale : 1;
-    const outerRadius = Math.min(cx, cy) * 0.92 * scale;
+    const outerRadius = R * 0.92 * scale;
     const GAP = window.ZoomState ? window.ZoomState.wedgeGap : 6;
     const blowInner = outerRadius + GAP;
-    const ANN_W = rd.annotActive ? 12 : 0;
+    const blowOuter = R * 0.97;
     const numGenomes = rd.visibleGenomes.length;
-    const GEN_W = Math.min(18, Math.max(5,
-      (outerRadius * 0.35 - ANN_W) / Math.max(1, numGenomes)));
-    const blowOuter = blowInner + ANN_W + numGenomes * GEN_W + 6;
-    return { outerRadius, blowInner, blowOuter, ANN_W, GEN_W };
+    const available = Math.max(0, blowOuter - blowInner);
+    const ANN_W = rd.annotActive ? Math.min(12, available * 0.25) : 0;
+    const GEN_W = numGenomes > 0 ? (available - ANN_W) / numGenomes : 0;
+    return { outerRadius, blowInner, blowOuter, ANN_W, GEN_W, numGenomes };
   }
 
   // ── Data buffer builder ───────────────────────────────────────────────────
@@ -199,30 +206,13 @@ void main() { fragColor = vColor; }
       instances.push(geoStart, geoEnd, rInner, rOuter, r, g, b, a);
     }
 
-    // ── Annotation ring — only genes that have an annotation color ────────
-    if (rd.annotActive && ANN_W > 0 && rd.referenceGenes && rd.geneAnnotColors) {
-      const annInner = blowInner;
-      const annOuter = annInner + ANN_W;
+    const numGenomes = rd.visibleGenomes ? rd.visibleGenomes.length : 0;
 
-      rd.referenceGenes.forEach((gene, geneId) => {
-        if (gene.endAngle <= gene.startAngle) return;
-        const cssColor = rd.geneAnnotColors.get(geneId);
-        if (!cssColor) return;
-        const color = parseColorToFloat(cssColor);
-        if (rd.annotIsContinuous) {
-          const frac = rd.geneAnnotBarFractions ? (rd.geneAnnotBarFractions.get(geneId) || 0) : 0;
-          if (frac > 0) push(gene.startAngle, gene.endAngle, annInner, annInner + frac * ANN_W, color);
-        } else {
-          push(gene.startAngle, gene.endAngle, annInner, annOuter, color);
-        }
-      });
-    }
-
-    // ── Genome rings ──────────────────────────────────────────────────────
+    // ── Genome rings — start immediately at blowInner (annotation is outermost) ─
     if (rd.visibleGenomes && rd.referenceGenes) {
-      rd.visibleGenomes.forEach((genomeId, i) => {
-        const gInner = blowInner + ANN_W + i * GEN_W;
-        const gOuter = gInner + GEN_W - 2;
+      rd.visibleGenomes.forEach(function(genomeId, i) {
+        const gInner = blowInner + i * GEN_W;
+        const gOuter = gInner + GEN_W - 1;
 
         const genomeMap = rd.genomeGenes ? rd.genomeGenes.get(genomeId) : null;
         if (!genomeMap) return;
@@ -232,11 +222,24 @@ void main() { fragColor = vColor; }
           : (rd.colorScale ? rd.colorScale(genomeId) : '#888888');
         const color = parseColorToFloat(baseColor || '#888888');
 
-        rd.referenceGenes.forEach((refGene, geneId) => {
+        rd.referenceGenes.forEach(function(refGene, geneId) {
           if (!genomeMap.has(geneId)) return;
           if (refGene.endAngle <= refGene.startAngle) return;
           push(refGene.startAngle, refGene.endAngle, gInner, gOuter, color);
         });
+      });
+    }
+
+    // ── Annotation ring — always outermost (after all genome rings) ────────
+    if (rd.annotActive && ANN_W > 0 && rd.referenceGenes && rd.geneAnnotColors) {
+      const annInner = blowInner + numGenomes * GEN_W;
+      const annOuter = annInner + ANN_W;
+      rd.referenceGenes.forEach(function(gene, geneId) {
+        if (gene.endAngle <= gene.startAngle) return;
+        const cssColor = rd.geneAnnotColors.get(geneId);
+        if (!cssColor) return;
+        const color = parseColorToFloat(cssColor);
+        push(gene.startAngle, gene.endAngle, annInner, annOuter, color);
       });
     }
 
@@ -295,23 +298,37 @@ void main() { fragColor = vColor; }
     const cx = canvas.width / 2;
     const cy = canvas.height / 2;
 
-    if (lastRenderData) {
-      const { blowOuter } = computeRingGeometry(lastRenderData, cx, cy);
-      const maxR = Math.min(cx, cy) * 0.97;
-      // Converges to blowOuter == maxR by proportionally adjusting scale each frame.
-      const targetScale = zs.zoomLevel > 1.05
-        ? Math.min(1.0, zs.displayRadiusScale * maxR / blowOuter)
-        : 1.0;
-      zs.setTargetRadiusScale(Math.max(0.3, targetScale));
+    {
+      // The wedge outer edge is fixed at R*0.97. The circle shrinks to make room.
+      // wedgeHeightScale controls the fraction of R*0.97 allocated to the wedge rings;
+      // larger scale → bigger wedge → smaller circle.
+      const R = Math.min(cx, cy);
+      const maxR = R * 0.97;
+      if (zs.zoomLevel > 1.05) {
+        const wedgeFraction = Math.min(0.80, 0.15 * zs.wedgeHeightScale);
+        const targetOuterRadius = maxR * (1 - wedgeFraction);
+        const targetScale = Math.max(0.1, Math.min(1.0, targetOuterRadius / (R * 0.92)));
+        zs.setTargetRadiusScale(targetScale);
+      } else {
+        zs.setTargetRadiusScale(1.0);
+      }
     }
 
-    // Trigger a Canvas 2D redraw whenever the scale has meaningfully changed.
-    if (Math.abs(zs.displayRadiusScale - lastDisplayScale) > 0.002) {
+    // Trigger a Canvas 2D redraw and WebGL buffer rebuild whenever animated values change.
+    // Ring pixel positions depend on displayRadiusScale, so dirty must be set on scale change.
+    const focusAngleDelta = Math.abs(zs.focusAngle - lastFocusAngle);
+    const scaleDelta      = Math.abs(zs.displayRadiusScale - lastDisplayScale);
+    const zoomDelta       = Math.abs(zs.zoomLevel - lastZoomLevel);
+    if (scaleDelta > 0.002 || focusAngleDelta > 0.001 || zoomDelta > 0.01) {
       lastDisplayScale = zs.displayRadiusScale;
+      lastFocusAngle   = zs.focusAngle;
+      lastZoomLevel    = zs.zoomLevel;
+      if (scaleDelta > 0.002 && lastRenderData) dirty = true;
       if (typeof window.drawVisualization === 'function' && window.getLastRenderData) {
         const rd = window.getLastRenderData();
         if (rd) window.drawVisualization(rd);
       }
+      if (typeof window.updateZoomInfo === 'function') window.updateZoomInfo();
     }
 
     const shouldShow = zs.zoomLevel > 1.05;
@@ -336,11 +353,6 @@ void main() { fragColor = vColor; }
 
     gl.useProgram(program);
     setUniforms(zs.focusAngle, dataHalfSpan, wedgeHalfSpan, zs.zoomLevel, cx, cy);
-
-    // Draw background
-    updateBgBuffer(zs.focusAngle, dataHalfSpan, blowInner, blowOuter);
-    gl.bindVertexArray(bgVAO);
-    gl.drawArraysInstanced(gl.TRIANGLES, 0, 16 * 6, 1);
 
     // Draw data arcs
     if (numDataInstances > 0) {
@@ -389,7 +401,7 @@ void main() { fragColor = vColor; }
 
     container.appendChild(canvas);
 
-    gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: false });
+    gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: true });
     if (!gl) {
       console.error('webgl-renderer: WebGL2 not available');
       return;
@@ -451,6 +463,10 @@ void main() { fragColor = vColor; }
 
   window.updateWebGLRenderData = function (renderData) {
     lastRenderData = renderData;
+    dirty = true;
+  };
+
+  window.markWebGLDirty = function () {
     dirty = true;
   };
 

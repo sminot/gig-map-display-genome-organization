@@ -24,12 +24,15 @@
       this.focusAngle = (this.focusAngle + diff * focusAlpha + 2 * Math.PI) % (2 * Math.PI);
     },
 
+    _targetFocusAngle: 0,
     setFocusAngle: function (angle) {
       _targetFocusAngle = ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      this._targetFocusAngle = _targetFocusAngle;
     },
 
     setZoomLevel: function (level) {
       _targetZoomLevel = Math.max(1, Math.min(50, level));
+      this._targetZoomLevel = _targetZoomLevel;
     },
 
     setTargetRadiusScale: function (scale) {
@@ -45,12 +48,18 @@
       this.wedgeGap = Math.max(0, Math.min(80, px));
     },
 
+    wedgeHeightScale: 2.0,
+    setWedgeHeightScale: function (scale) {
+      this.wedgeHeightScale = Math.max(2.0, Math.min(10.0, scale));
+    },
+
     setHovering: function (hovering) {
       this.isHovering = hovering;
     },
 
     resetZoom: function () {
       _targetZoomLevel = 1;
+      this._targetZoomLevel = 1;
       _targetRadiusScale = 1;
     },
 

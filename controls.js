@@ -59,8 +59,10 @@
       if (GeneAnnotationState.selectedCategories && GeneAnnotationState.selectedCategories.size > 0) {
         params.set('annotSelected', Array.from(GeneAnnotationState.selectedCategories).join(','));
       }
-      if (GeneAnnotationState.displayMode && GeneAnnotationState.displayMode !== 'bars') {
-        params.set('annotDisplayMode', GeneAnnotationState.displayMode);
+      if (GeneAnnotationState.customColors && GeneAnnotationState.customColors.size > 0) {
+        const colorObj = {};
+        GeneAnnotationState.customColors.forEach((hex, cat) => { colorObj[cat] = hex; });
+        params.set('annotCustomColors', JSON.stringify(colorObj));
       }
     }
 
@@ -74,6 +76,9 @@
       }
       if (GenomeAnnotationState.sortColumn) params.set('genomeSortCol', GenomeAnnotationState.sortColumn);
       if (!GenomeAnnotationState.sortAscending) params.set('genomeSortOrder', 'desc');
+      if (GenomeAnnotationState.tooltipColumns && GenomeAnnotationState.tooltipColumns.length > 0) {
+        params.set('genomeTooltipCols', GenomeAnnotationState.tooltipColumns.join(','));
+      }
     }
 
     const str = params.toString();
@@ -172,13 +177,19 @@
         const arr = selectedStr.split(',').filter(Boolean);
         window.setGeneAnnotationSelectedCategories(arr);
       }
-      const displayMode = params.get('annotDisplayMode');
-      if (displayMode && typeof window.setGeneAnnotationDisplayMode === 'function') {
-        window.setGeneAnnotationDisplayMode(displayMode);
-        const barsBtn   = document.getElementById('annot-mode-bars');
-        const arrowsBtn = document.getElementById('annot-mode-arrows');
-        if (barsBtn)   barsBtn.classList.toggle('active', displayMode !== 'arrows');
-        if (arrowsBtn) arrowsBtn.classList.toggle('active', displayMode === 'arrows');
+      const customColorsStr = params.get('annotCustomColors');
+      if (customColorsStr) {
+        try {
+          const colorObj = JSON.parse(customColorsStr);
+          if (colorObj && typeof colorObj === 'object') {
+            Object.entries(colorObj).forEach(([cat, hex]) => {
+              if (typeof hex === 'string' && /^#[0-9a-fA-F]{6}$/.test(hex)) {
+                GeneAnnotationState.customColors.set(cat, hex);
+              }
+            });
+            buildCategoryList();
+          }
+        } catch (e) { /* ignore malformed */ }
       }
     }
 
@@ -224,6 +235,20 @@
         const asc  = sortOrdSel ? sortOrdSel.value !== 'desc' : true;
         window.setGenomeSortColumn(col, asc);
       }
+      const tooltipColsStr = params.get('genomeTooltipCols');
+      if (tooltipColsStr) {
+        const validCols = tooltipColsStr.split(',').filter(Boolean)
+          .filter((c) => GenomeAnnotationState.columns.includes(c));
+        if (validCols.length > 0) {
+          if (window.setGenomeTooltipColumns) window.setGenomeTooltipColumns(validCols);
+          const tooltipSel = document.getElementById('genome-tooltip-columns-select');
+          if (tooltipSel) {
+            for (const opt of tooltipSel.options) {
+              opt.selected = validCols.includes(opt.value);
+            }
+          }
+        }
+      }
       if (typeof window.renderGenomeAnnotationLegend === 'function') window.renderGenomeAnnotationLegend();
     }
   }
@@ -261,9 +286,18 @@
         writeURLParams();
       });
 
-      const swatch = document.createElement('span');
+      const effectiveColor = (GeneAnnotationState.customColors && GeneAnnotationState.customColors.get(val)) || color;
+      const swatch = document.createElement('input');
+      swatch.type = 'color';
       swatch.className = 'category-swatch';
-      swatch.style.background = color;
+      swatch.value = effectiveColor;
+      swatch.title = 'Click to change color';
+      swatch.addEventListener('change', (e) => {
+        e.stopPropagation();
+        window.setGeneAnnotationCustomColor(val, e.target.value);
+        buildCategoryList();
+      });
+      swatch.addEventListener('click', (e) => e.stopPropagation());
 
       const nameSpan = document.createElement('span');
       nameSpan.className = 'category-name';
@@ -328,6 +362,74 @@
         ? `${selCount.toLocaleString()} / ${totalSelected.toLocaleString()} selected genes present in alignments.`
         : '';
     }
+  }
+
+  function updateZoomInfo() {
+    const infoEl = document.getElementById('zoom-info');
+    const textEl = document.getElementById('zoom-info-text');
+    if (!infoEl || !textEl) return;
+
+    const zs = window.ZoomState;
+    const rd = window.getLastRenderData ? window.getLastRenderData() : null;
+
+    if (!zs || zs.zoomLevel <= 1.05 || !rd || !rd.totalLength) {
+      infoEl.hidden = true;
+      return;
+    }
+
+    const totalLen  = rd.totalLength;
+    const halfSpan  = zs.wedgeSpan * Math.PI / zs.zoomLevel;
+    let startAngle  = (zs.focusAngle - halfSpan + 4 * Math.PI) % (2 * Math.PI);
+    let endAngle    = (zs.focusAngle + halfSpan + 4 * Math.PI) % (2 * Math.PI);
+
+    const startBp = Math.max(0, Math.round(startAngle / (2 * Math.PI) * totalLen));
+    const endBp   = Math.round(endAngle   / (2 * Math.PI) * totalLen);
+    const spanBp  = Math.round(halfSpan * 2 / (2 * Math.PI) * totalLen);
+
+    function fmt(n) {
+      if (n >= 1e6) return (n / 1e6).toFixed(2) + ' Mbp';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + ' kbp';
+      return n + ' bp';
+    }
+
+    textEl.textContent = fmt(startBp) + ' – ' + fmt(endBp) + ' (' + fmt(spanBp) + ' shown)';
+    infoEl.hidden = false;
+  }
+
+  window.updateZoomInfo = updateZoomInfo;
+
+  function updateGenomeAnnotationStats() {
+    const statsEl = document.getElementById('genome-annotation-stats');
+    if (!statsEl) return;
+    if (!GenomeAnnotationState.rawData || GenomeAnnotationState.rawData.size === 0) {
+      statsEl.hidden = true;
+      return;
+    }
+    const allGenomes  = AppState.allGenomes || [];
+    const metaTotal   = GenomeAnnotationState.rawData.size;
+    const found       = allGenomes.filter((g) => GenomeAnnotationState.rawData.has(String(g))).length;
+    const pct         = metaTotal > 0 ? ((found / metaTotal) * 100).toFixed(1) : '0.0';
+    const notInData   = metaTotal - found;
+    let html = `${pct}% (${found.toLocaleString()} / ${metaTotal.toLocaleString()}) of metadata genomes found in alignment data.`;
+    if (notInData > 0) html += ` ${notInData.toLocaleString()} not found.`;
+    statsEl.innerHTML = html;
+    statsEl.hidden = false;
+  }
+
+  // ─── Drop zone visibility sync ────────────────────────────────────────────
+
+  function syncDropZoneVisibility() {
+    const alignUrl = document.getElementById('data-url-input');
+    const dzMain   = document.getElementById('drop-zone');
+    if (alignUrl && dzMain) dzMain.hidden = alignUrl.value.trim().length > 0;
+
+    const geneUrl = document.getElementById('gene-annot-url-input');
+    const dzGene  = document.getElementById('annotation-drop-zone');
+    if (geneUrl && dzGene) dzGene.hidden = geneUrl.value.trim().length > 0;
+
+    const genomeUrl = document.getElementById('genome-annot-url-input');
+    const dzGenome  = document.getElementById('genome-annotation-drop-zone');
+    if (genomeUrl && dzGenome) dzGenome.hidden = genomeUrl.value.trim().length > 0;
   }
 
   // ─── Boot ─────────────────────────────────────────────────────────────────
@@ -432,27 +534,7 @@
       });
     }
 
-    // Gene annotation — Display mode buttons
-    const annotModeBars   = document.getElementById('annot-mode-bars');
-    const annotModeArrows = document.getElementById('annot-mode-arrows');
-    if (annotModeBars) {
-      annotModeBars.addEventListener('click', () => {
-        window.setGeneAnnotationDisplayMode('bars');
-        annotModeBars.classList.add('active');
-        if (annotModeArrows) annotModeArrows.classList.remove('active');
-        writeURLParams();
-      });
-    }
-    if (annotModeArrows) {
-      annotModeArrows.addEventListener('click', () => {
-        window.setGeneAnnotationDisplayMode('arrows');
-        annotModeArrows.classList.add('active');
-        if (annotModeBars) annotModeBars.classList.remove('active');
-        writeURLParams();
-      });
-    }
-
-    // Gene annotation — Name column select
+// Gene annotation — Name column select
     const annotNameColSelect = document.getElementById('annotation-name-column-select');
     if (annotNameColSelect) {
       annotNameColSelect.addEventListener('change', (e) => {
@@ -467,6 +549,7 @@
     if (genomeNameColSelect) {
       genomeNameColSelect.addEventListener('change', (e) => {
         if (window.setGenomeLabelColumn) window.setGenomeLabelColumn(e.target.value || null);
+        refreshGenomeDisplayNames();
         writeURLParams();
       });
     }
@@ -493,6 +576,14 @@
       genomeGroupColSelect.addEventListener('change', (e) => {
         if (window.setGenomeGroupColumn) window.setGenomeGroupColumn(e.target.value || null);
         writeURLParams();
+      });
+    }
+
+    const genomeTooltipColsSelect = document.getElementById('genome-tooltip-columns-select');
+    if (genomeTooltipColsSelect) {
+      genomeTooltipColsSelect.addEventListener('change', () => {
+        const selected = Array.from(genomeTooltipColsSelect.selectedOptions).map((o) => o.value);
+        if (window.setGenomeTooltipColumns) window.setGenomeTooltipColumns(selected);
       });
     }
 
@@ -557,6 +648,13 @@
     }
 
     // Reset zoom button
+    const zoomInfoClose = document.getElementById('zoom-info-close');
+    if (zoomInfoClose) {
+      zoomInfoClose.addEventListener('click', () => {
+        if (window.ZoomState) { window.ZoomState.resetZoom(); updateZoomInfo(); }
+      });
+    }
+
     const resetZoomBtn = document.getElementById('reset-zoom-btn');
     if (resetZoomBtn) {
       resetZoomBtn.addEventListener('click', () => {
@@ -582,6 +680,14 @@
     wireURLBtn('data-url-btn',       'data-url-input',        (url) => window.loadFileFromURL(url));
     wireURLBtn('gene-annot-url-btn', 'gene-annot-url-input',  (url) => window.loadGeneAnnotationFromURL(url));
     wireURLBtn('genome-annot-url-btn','genome-annot-url-input',(url) => window.loadGenomeAnnotationFromURL(url));
+
+    // Hide drop zones in real time as URL inputs are filled.
+    ['data-url-input', 'gene-annot-url-input', 'genome-annot-url-input'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', syncDropZoneVisibility);
+    });
+
+    syncDropZoneVisibility();
   });
 
   // ─── Callbacks for app.js ─────────────────────────────────────────────────
@@ -600,7 +706,7 @@
     for (const genome of AppState.allGenomes) {
       const option = document.createElement('option');
       option.value = genome;
-      option.textContent = shortenName(genome);
+      option.textContent = getGenomeDisplayName(genome);
       option.title = genome;
       select.appendChild(option);
     }
@@ -633,6 +739,8 @@
       }
     }
 
+    syncDropZoneVisibility();
+
     window.onStateChanged();
   };
 
@@ -649,6 +757,8 @@
       window.renderGenomeAnnotationLegend();
     }
     updateAnnotationStats(renderData);
+    updateGenomeAnnotationStats();
+    updateZoomInfo();
     writeURLParams();
   };
 
@@ -743,6 +853,16 @@
     if (nameSelect) nameSelect.value = GenomeAnnotationState.labelColumn || '';
     if (groupSelect) groupSelect.value = GenomeAnnotationState.groupColumn || '';
 
+    const tooltipColsSelect = document.getElementById('genome-tooltip-columns-select');
+    if (tooltipColsSelect) {
+      tooltipColsSelect.innerHTML = '';
+      for (const col of GenomeAnnotationState.columns) {
+        const opt = document.createElement('option');
+        opt.value = col; opt.textContent = col;
+        tooltipColsSelect.appendChild(opt);
+      }
+    }
+
     document.getElementById('genome-palette-select').value =
       GenomeAnnotationState.palette || 'Tableau10';
 
@@ -758,7 +878,9 @@
     }
 
     applyURLParams('genomeAnnotation');
+    refreshGenomeDisplayNames();
     window.renderGenomeAnnotationLegend();
+    updateGenomeAnnotationStats();
     writeURLParams();
   };
 
@@ -811,7 +933,7 @@
 
       const nameSpan = document.createElement('span');
       nameSpan.className  = 'genome-name';
-      nameSpan.textContent = shortenName(genome);
+      nameSpan.textContent = getGenomeDisplayName(genome);
       nameSpan.title       = genome;
 
       label.appendChild(checkbox);
@@ -863,5 +985,26 @@
 
   function shortenName(genome) {
     return genome.replace(/_genomic\.fna\.gz$/, '').replace(/\.fna\.gz$/, '');
+  }
+
+  function getGenomeDisplayName(genome) {
+    if (window.GenomeAnnotationState && GenomeAnnotationState.labelColumn && GenomeAnnotationState.rawData) {
+      const row = GenomeAnnotationState.rawData.get(String(genome));
+      if (row) {
+        const label = row[GenomeAnnotationState.labelColumn];
+        if (label !== null && label !== undefined && label !== '') return String(label);
+      }
+    }
+    return shortenName(genome);
+  }
+
+  function refreshGenomeDisplayNames() {
+    const select = document.getElementById('reference-select');
+    if (select) {
+      for (const opt of select.options) {
+        opt.textContent = getGenomeDisplayName(opt.value);
+      }
+    }
+    buildGenomeToggles();
   }
 })();
