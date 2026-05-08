@@ -127,6 +127,13 @@
           <!-- Genomes section -->
           <section class="control-section" aria-labelledby="genomes-section-heading">
             <h2 class="control-section-heading" id="genomes-section-heading">Genomes</h2>
+            <div class="category-search-row">
+              <input type="text" id="genome-search" class="url-load-input category-search-input"
+                     placeholder="Filter genomes…" autocomplete="off">
+              <button id="genome-select-all" class="btn-url" type="button">All</button>
+              <button id="genome-clear-all"  class="btn-url" type="button">None</button>
+            </div>
+            <button id="genome-gene-similarity-btn" class="btn-export" type="button" style="width:100%;margin-top:4px">Sort by gene content</button>
             <div id="genome-toggles" class="genome-toggles" role="group" aria-label="Toggle genomes">
               <!-- checkboxes populated by controls.js -->
             </div>
