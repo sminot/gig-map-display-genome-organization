@@ -20,7 +20,9 @@
           <h1 class="app-title">Pangenome Viewer</h1>
         </header>
 
-        <!-- Drop zone -->
+        <!-- ── File Inputs (always visible) ──────────────────────────── -->
+
+        <!-- Alignment data drop zone -->
         <section class="upload-section" aria-label="File upload">
           <div
             id="drop-zone"
@@ -44,19 +46,60 @@
           </div>
         </section>
 
-        <!-- URL loading -->
+        <!-- URL inputs for all data sources -->
         <div class="url-load-section">
           <div class="url-load-row">
-            <span class="url-load-label">File URL</span>
-            <input type="text" id="data-url-input" class="url-load-input" placeholder="https://…/genomes.aln.csv.gz">
-            <button id="data-url-btn" class="btn-url">Load</button>
+            <span class="url-load-label">Alignment URL</span>
+            <div class="url-load-input-group">
+              <input type="text" id="data-url-input" class="url-load-input" placeholder="https://…/genomes.aln.csv.gz">
+              <button id="data-url-btn" class="btn-url">Load</button>
+            </div>
           </div>
           <div class="url-load-row">
-            <span class="url-load-label">Base URL</span>
-            <input type="text" id="base-url-input" class="url-load-input" placeholder="https://…/dataset/">
-            <button id="base-url-btn" class="btn-url">Apply</button>
+            <span class="url-load-label">Gene annot. URL</span>
+            <div class="url-load-input-group">
+              <input type="text" id="gene-annot-url-input" class="url-load-input" placeholder="https://…/genes.annot.csv.gz">
+              <button id="gene-annot-url-btn" class="btn-url">Load</button>
+            </div>
+          </div>
+          <div class="url-load-row">
+            <span class="url-load-label">Genome annot. URL</span>
+            <div class="url-load-input-group">
+              <input type="text" id="genome-annot-url-input" class="url-load-input" placeholder="https://…/genomes.annot.csv.gz">
+              <button id="genome-annot-url-btn" class="btn-url">Load</button>
+            </div>
           </div>
         </div>
+
+        <!-- Compact drop zones for annotation files -->
+        <div id="annotation-drop-zone" class="drop-zone-compact" role="button" tabindex="0"
+             aria-label="Drop zone: drop gene annotation CSV here or press Enter to browse">
+          <span class="drop-zone-compact-text">
+            Gene annot.: Drop CSV / TSV&nbsp;&nbsp;<span id="annotation-file-label" class="upload-file-label"></span>
+          </span>
+          <input type="file" id="annotation-file-input" accept=".csv,.tsv,.txt,.gz" aria-hidden="true" tabindex="-1"/>
+        </div>
+        <div id="annotation-error" class="error-message" role="alert" hidden></div>
+
+        <div
+          id="genome-annotation-drop-zone"
+          class="drop-zone-compact"
+          role="button"
+          tabindex="0"
+          aria-label="Drop zone: drop genome annotation CSV here or press Enter to browse"
+        >
+          <span class="drop-zone-compact-text">
+            Genome annot.: Drop CSV / TSV&nbsp;&nbsp;<span id="genome-annotation-file-label" class="upload-file-label"></span>
+          </span>
+          <input
+            type="file"
+            id="genome-annotation-file-input"
+            accept=".csv,.tsv,.txt,.gz"
+            aria-hidden="true"
+            tabindex="-1"
+          />
+        </div>
+        <div id="genome-annotation-error" class="error-message" role="alert" hidden></div>
 
         <!-- Loading indicator (hidden by default) -->
         <div id="loading-indicator" class="loading-indicator" aria-live="polite" aria-busy="true" hidden>
@@ -89,90 +132,73 @@
             </div>
           </section>
 
-          <!-- Gene Annotation section -->
+          <!-- Highlight Genes section (controls only — file inputs moved to top) -->
           <section class="control-section" aria-labelledby="annot-section-heading">
-            <h2 class="control-section-heading" id="annot-section-heading">Gene Annotation</h2>
+            <h2 class="control-section-heading" id="annot-section-heading">Highlight Genes</h2>
 
-            <!-- URL input for gene annotation -->
-            <div class="url-load-row" style="margin-bottom:6px">
-              <input type="text" id="gene-annot-url-input" class="url-load-input" placeholder="https://…/gene_annotations.csv">
-              <button id="gene-annot-url-btn" class="btn-url">Load URL</button>
-            </div>
-
-            <!-- Compact upload zone -->
-            <div
-              id="annotation-drop-zone"
-              class="drop-zone-compact"
-              role="button"
-              tabindex="0"
-              aria-label="Drop zone: drop gene annotation CSV here or press Enter to browse"
-            >
-              <span class="drop-zone-compact-text">
-                Drop CSV / TSV&nbsp;&nbsp;<span id="annotation-file-label" class="upload-file-label"></span>
-              </span>
-              <input
-                type="file"
-                id="annotation-file-input"
-                accept=".csv,.tsv,.txt,.gz"
-                aria-hidden="true"
-                tabindex="-1"
-              />
-            </div>
-
-            <div id="annotation-error" class="error-message" role="alert" hidden></div>
-
-            <!-- Column selector + clear (shown once file loaded) -->
             <div id="annotation-controls" class="annotation-controls" hidden>
               <div class="control-row">
-                <label for="annotation-column-select" class="control-label">Column</label>
-                <select id="annotation-column-select" class="select-control select-control-sm">
+                <label for="annotation-category-column-select" class="control-label">Group by</label>
+                <select id="annotation-category-column-select" class="select-control select-control-sm">
                   <option value="">— none —</option>
                 </select>
               </div>
+
+              <div class="control-row">
+                <label for="annotation-name-column-select" class="control-label">Name col.</label>
+                <select id="annotation-name-column-select" class="select-control select-control-sm">
+                  <option value="">— none —</option>
+                </select>
+              </div>
+
+              <div id="annotation-stats" class="annotation-stats" hidden></div>
+
+              <div id="annotation-category-section" hidden>
+                <div class="category-search-row">
+                  <input type="text" id="annotation-category-search" class="url-load-input category-search-input"
+                         placeholder="Filter categories…">
+                  <button id="annot-select-all" class="btn-url" type="button">All</button>
+                  <button id="annot-clear-all"  class="btn-url" type="button">None</button>
+                </div>
+                <div id="annotation-category-list" class="category-checklist"></div>
+                <div id="annotation-selection-stats" class="annotation-stats"></div>
+              </div>
+
+              <div id="annotation-display-mode" class="control-row" hidden>
+                <label class="control-label">Style</label>
+                <div class="btn-group">
+                  <button id="annot-mode-bars"   class="btn-toggle active" type="button">Bars</button>
+                  <button id="annot-mode-arrows" class="btn-toggle"        type="button">Arrows</button>
+                </div>
+              </div>
+
               <button id="clear-annotation-btn" class="btn-text-danger" type="button">Clear</button>
             </div>
 
-            <!-- Legend -->
             <div id="annotation-legend" class="legend-container"></div>
           </section>
 
-          <!-- Genome Annotation section -->
+          <!-- Genome Annotation section (controls only — file inputs moved to top) -->
           <section class="control-section" aria-labelledby="genome-annot-section-heading">
             <h2 class="control-section-heading" id="genome-annot-section-heading">Genome Annotation</h2>
-
-            <!-- URL input for genome annotation -->
-            <div class="url-load-row" style="margin-bottom:6px">
-              <input type="text" id="genome-annot-url-input" class="url-load-input" placeholder="https://…/genome_annotations.csv">
-              <button id="genome-annot-url-btn" class="btn-url">Load URL</button>
-            </div>
-
-            <!-- Compact upload zone -->
-            <div
-              id="genome-annotation-drop-zone"
-              class="drop-zone-compact"
-              role="button"
-              tabindex="0"
-              aria-label="Drop zone: drop genome annotation CSV here or press Enter to browse"
-            >
-              <span class="drop-zone-compact-text">
-                Drop CSV / TSV&nbsp;&nbsp;<span id="genome-annotation-file-label" class="upload-file-label"></span>
-              </span>
-              <input
-                type="file"
-                id="genome-annotation-file-input"
-                accept=".csv,.tsv,.txt,.gz"
-                aria-hidden="true"
-                tabindex="-1"
-              />
-            </div>
-
-            <div id="genome-annotation-error" class="error-message" role="alert" hidden></div>
 
             <!-- Column selectors + palette + clear (shown once file loaded) -->
             <div id="genome-annotation-controls" class="annotation-controls" hidden>
               <div class="control-row">
                 <label for="genome-color-column-select" class="control-label">Color by</label>
                 <select id="genome-color-column-select" class="select-control select-control-sm">
+                  <option value="">— none —</option>
+                </select>
+              </div>
+              <div class="control-row">
+                <label for="genome-group-column-select" class="control-label">Group by</label>
+                <select id="genome-group-column-select" class="select-control select-control-sm">
+                  <option value="">— none —</option>
+                </select>
+              </div>
+              <div class="control-row">
+                <label for="genome-name-column-select" class="control-label">Name col.</label>
+                <select id="genome-name-column-select" class="select-control select-control-sm">
                   <option value="">— none —</option>
                 </select>
               </div>
@@ -240,6 +266,20 @@
               />
               <span id="wedge-gap-display" class="range-display">6px</span>
             </div>
+            <div class="control-row">
+              <label for="wedge-height-input" class="control-label">Height</label>
+              <input
+                type="range"
+                id="wedge-height-input"
+                class="range-control"
+                min="2"
+                max="10"
+                value="2"
+                step="0.1"
+                aria-label="Wedge height scale factor"
+              />
+              <span id="wedge-height-display" class="range-display">2.0×</span>
+            </div>
             <button id="reset-zoom-btn" class="btn-export" type="button" style="width:100%;margin-top:4px">Reset Zoom</button>
             <p class="control-hint">Hover over the circle and scroll to zoom in. The wedge shows the zoomed region.</p>
           </section>
@@ -249,8 +289,6 @@
             <h2 class="control-section-heading" id="export-section-heading">Export</h2>
             <div class="export-buttons">
               <button id="export-png-btn" class="btn-export" type="button">PNG</button>
-              <button id="export-pdf-btn" class="btn-export" type="button">PDF</button>
-              <button id="export-html-btn" class="btn-export" type="button">HTML</button>
             </div>
           </section>
 

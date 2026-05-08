@@ -14,12 +14,16 @@ const AppState = {
 // ─── Gene Annotation State ────────────────────────────────────────────────────
 // Populated by annotation.js when the user uploads a gene annotation file.
 const GeneAnnotationState = {
-  rawData:      new Map(), // geneId (sseqid) → row object (all columns)
-  columns:      [],        // string[] — annotation column names (col 2+)
-  activeColumn: null,      // string | null
-  columnType:   null,      // 'categorical' | 'continuous' | null
-  scale:        null,      // d3 ordinal or sequential scale | null
-  domain:       [],        // unique values (categorical) or [min, max] (continuous)
+  rawData:            new Map(), // geneId → row object
+  columns:            [],        // string[] — all column names (col 2+)
+  categoryColumn:     null,      // string | null
+  labelColumn:        null,      // string | null — column shown as gene name in tooltip
+  selectedCategories: new Set(), // Set<string> — selected values
+  categoryValues:     [],        // string[] — all unique values, sorted
+  categoryCounts:     new Map(), // value → count in rawData
+  scale:              null,      // d3 ordinal scale (value → color)
+  displayMode:        'bars',    // 'bars' | 'arrows'
+  loadedURL:          null,
 };
 
 // ─── Genome Annotation State ──────────────────────────────────────────────────
@@ -28,11 +32,16 @@ const GenomeAnnotationState = {
   rawData:       new Map(), // genomeId → row object
   columns:       [],        // string[] — annotation column names (col 2+)
   colorColumn:   null,      // string | null — column used to color rings
+  groupColumn:   null,      // string | null — groups+sorts rings (overrides colorColumn for color)
+  groupScale:    null,      // d3 ordinal scale | null
+  groupDomain:   [],        // unique sorted values for groupColumn
+  labelColumn:   null,      // string | null — column shown as genome name in tooltip
   sortColumn:    null,      // string | null — column used to sort rings
   sortAscending: true,
   palette:       'Tableau10', // name of the active D3 palette
   scale:         null,        // d3 ordinal scale | null
   domain:        [],          // unique category values for the color column
+  loadedURL:     null,
 };
 
 // ─── Render Data (shape documentation) ───────────────────────────────────────
@@ -57,12 +66,9 @@ const GenomeAnnotationState = {
 //     // Fallback d3 ordinal scale (genome → color).
 //
 //   // Pre-resolved annotation data (avoids renderer coupling to annotation modules):
-//   annotActive:        boolean,         // true when a gene annotation column is active
-//   annotIsContinuous:  boolean,         // true when the active column is continuous
-//   annotColumnName:    string | null,   // active column name (for tooltips)
-//   geneAnnotColors:    Map<string, string>,  // geneId → CSS color
-//   geneAnnotBarFractions: Map<string, number>, // geneId → [0,1] (continuous mode)
-//   geneAnnotValues:    Map<string, any>, // geneId → raw annotation value (for tooltips)
+//   annotActive:        boolean,         // true when categoryColumn is set
+//   annotDisplayMode:   'bars' | 'arrows',
+//   geneAnnotColors:    Map<string, string>,  // geneId → CSS color (only highlighted genes)
 //   genomeColors:       Map<string, string>,  // genome → CSS color (annotation > colorScale)
 // }
 
@@ -107,6 +113,9 @@ window.getPalette = function getPalette(name) {
  * @returns {Promise<string>}
  */
 window.readURLAsText = async function readURLAsText(url) {
+  if (!/^https?:\/\//i.test(url)) {
+    throw new Error('Only http:// and https:// URLs are supported.');
+  }
   var resp;
   try {
     resp = await fetch(url);
