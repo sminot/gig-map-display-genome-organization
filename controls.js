@@ -522,6 +522,59 @@
       buildGenomeToggles();
     });
 
+    // Genome search filter
+    const genomeSearch = document.getElementById('genome-search');
+    if (genomeSearch) {
+      genomeSearch.addEventListener('input', () => buildGenomeToggles());
+    }
+
+    const genomeSelectAll = document.getElementById('genome-select-all');
+    if (genomeSelectAll) {
+      genomeSelectAll.addEventListener('click', () => {
+        document.querySelectorAll('#genome-toggles .genome-toggle-checkbox').forEach((cb) => {
+          AppState.visibleGenomes.add(cb.value);
+          cb.checked = true;
+        });
+        window.onStateChanged();
+      });
+    }
+
+    const genomeClearAll = document.getElementById('genome-clear-all');
+    if (genomeClearAll) {
+      genomeClearAll.addEventListener('click', () => {
+        document.querySelectorAll('#genome-toggles .genome-toggle-checkbox').forEach((cb) => {
+          AppState.visibleGenomes.delete(cb.value);
+          cb.checked = false;
+        });
+        window.onStateChanged();
+      });
+    }
+
+    const geneSimilarityBtn = document.getElementById('genome-gene-similarity-btn');
+    if (geneSimilarityBtn) {
+      geneSimilarityBtn.addEventListener('click', () => {
+        if (AppState.customGenomeOrder) {
+          AppState.customGenomeOrder = null;
+          geneSimilarityBtn.textContent = 'Sort by gene content';
+          window.onStateChanged();
+        } else {
+          geneSimilarityBtn.textContent = 'Computing…';
+          geneSimilarityBtn.disabled = true;
+          setTimeout(() => {
+            try {
+              AppState.customGenomeOrder = computeGeneSimilarityOrder();
+              geneSimilarityBtn.textContent = 'Clear gene-content sort';
+            } catch (e) {
+              AppState.customGenomeOrder = null;
+              geneSimilarityBtn.textContent = 'Sort by gene content';
+            }
+            geneSimilarityBtn.disabled = false;
+            window.onStateChanged();
+          }, 10);
+        }
+      });
+    }
+
     // Gene annotation — Category column select
     const annotCatColSelect = document.getElementById('annotation-category-column-select');
     if (annotCatColSelect) {
@@ -722,6 +775,10 @@
    * Called by app.js after the CSV has been parsed and AppState is populated.
    */
   window.onDataLoaded = function () {
+    AppState.customGenomeOrder = null;
+    const simBtn = document.getElementById('genome-gene-similarity-btn');
+    if (simBtn) { simBtn.textContent = 'Sort by gene content'; simBtn.disabled = false; }
+
     colorScale = d3
       .scaleOrdinal(d3.schemeTableau10.concat(d3.schemePastel1))
       .domain(AppState.allGenomes);
@@ -916,6 +973,9 @@
     const container = document.getElementById('genome-toggles');
     container.innerHTML = '';
 
+    const searchEl = document.getElementById('genome-search');
+    const filter   = searchEl ? searchEl.value.toLowerCase() : '';
+
     const nonRefGenomes = AppState.allGenomes
       .filter((g) => g !== AppState.referenceGenome)
       .sort();
@@ -928,17 +988,10 @@
       return;
     }
 
-    // Select All / Deselect All buttons
-    const bulkRow = document.createElement('div');
-    bulkRow.style.cssText = 'display:flex;gap:6px;margin-bottom:6px';
-
-    const allBtn  = makeTextButton('All',  () => setBulkVisibility(nonRefGenomes, true));
-    const noneBtn = makeTextButton('None', () => setBulkVisibility(nonRefGenomes, false));
-    bulkRow.appendChild(allBtn);
-    bulkRow.appendChild(noneBtn);
-    container.appendChild(bulkRow);
-
     for (const genome of nonRefGenomes) {
+      const displayName = getGenomeDisplayName(genome);
+      if (filter && !displayName.toLowerCase().includes(filter)) continue;
+
       const color     = colorScale ? colorScale(genome) : '#888888';
       const isVisible = AppState.visibleGenomes.has(genome);
 
@@ -949,6 +1002,7 @@
       const checkbox = document.createElement('input');
       checkbox.type      = 'checkbox';
       checkbox.className = 'genome-toggle-checkbox';
+      checkbox.value     = genome;
       checkbox.checked   = isVisible;
       checkbox.addEventListener('change', () => {
         window.toggleGenome(genome, checkbox.checked);
@@ -958,8 +1012,8 @@
       dot.className = 'genome-color-dot';
 
       const nameSpan = document.createElement('span');
-      nameSpan.className  = 'genome-name';
-      nameSpan.textContent = getGenomeDisplayName(genome);
+      nameSpan.className   = 'genome-name';
+      nameSpan.textContent = displayName;
       nameSpan.title       = genome;
 
       label.appendChild(checkbox);
@@ -1032,5 +1086,96 @@
       }
     }
     buildGenomeToggles();
+  }
+
+  // ─── Gene-content similarity ordering ────────────────────────────────────
+
+  function computeGeneSimilarityOrder() {
+    var rows = AppState.rows;
+    var refGenome = AppState.referenceGenome;
+
+    var geneToIdx = new Map();
+    var geneCount = 0;
+    var genomeGenes = new Map();
+
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var genome = row.genome;
+      if (!genome || genome === refGenome) continue;
+      var gene = row.sseqid;
+      if (!gene) continue;
+
+      var idx = geneToIdx.get(gene);
+      if (idx === undefined) { idx = geneCount++; geneToIdx.set(gene, idx); }
+
+      var gset = genomeGenes.get(genome);
+      if (!gset) { gset = new Set(); genomeGenes.set(genome, gset); }
+      gset.add(idx);
+    }
+
+    var genomes = Array.from(genomeGenes.keys());
+    var N = genomes.length;
+    if (N <= 1) return genomes;
+
+    var words = Math.ceil(geneCount / 32) || 1;
+
+    var vecs = [];
+    for (var i = 0; i < N; i++) {
+      var v = new Int32Array(words);
+      genomeGenes.get(genomes[i]).forEach(function(g) { v[g >> 5] |= (1 << (g & 31)); });
+      vecs.push(v);
+    }
+
+    function popcount32(x) {
+      x = x >>> 0;
+      x -= (x >>> 1) & 0x55555555;
+      x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
+      x = (x + (x >>> 4)) & 0x0f0f0f0f;
+      return (x * 0x01010101) >>> 24;
+    }
+
+    var pcounts = new Int32Array(N);
+    for (var i = 0; i < N; i++) {
+      var s = 0;
+      for (var w = 0; w < words; w++) s += popcount32(vecs[i][w]);
+      pcounts[i] = s;
+    }
+
+    function intersectSize(va, vb) {
+      var s = 0;
+      for (var w = 0; w < words; w++) s += popcount32(va[w] & vb[w]);
+      return s;
+    }
+
+    // Start from genome with median gene count
+    var sortedCounts = Array.from(pcounts).sort(function(a, b) { return a - b; });
+    var medianCount = sortedCounts[Math.floor(N / 2)];
+    var startIdx = 0, minDiff = Infinity;
+    for (var i = 0; i < N; i++) {
+      var diff = Math.abs(pcounts[i] - medianCount);
+      if (diff < minDiff) { minDiff = diff; startIdx = i; }
+    }
+
+    // Greedy nearest-neighbour traversal
+    var visited = new Uint8Array(N);
+    var order = [startIdx];
+    visited[startIdx] = 1;
+
+    for (var step = 1; step < N; step++) {
+      var prev = order[step - 1];
+      var bestNext = -1, bestSim = -1;
+      var prevCount = pcounts[prev];
+      for (var j = 0; j < N; j++) {
+        if (visited[j]) continue;
+        var inter = intersectSize(vecs[prev], vecs[j]);
+        var union = prevCount + pcounts[j] - inter;
+        var sim = union > 0 ? inter / union : 0;
+        if (sim > bestSim) { bestSim = sim; bestNext = j; }
+      }
+      order.push(bestNext);
+      visited[bestNext] = 1;
+    }
+
+    return order.map(function(i) { return genomes[i]; });
   }
 })();

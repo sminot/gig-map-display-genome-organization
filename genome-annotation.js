@@ -322,6 +322,7 @@
   function getGenomeSortedOrder(genomes) {
     var groupCol = GenomeAnnotationState.groupColumn;
     if (groupCol) {
+      // groupColumn always wins — falls through to existing group-sort code below
       var rawData = GenomeAnnotationState.rawData;
       return genomes.slice().sort(function(a, b) {
         var rowA = rawData.get(String(a));
@@ -333,7 +334,17 @@
       });
     }
     if (!GenomeAnnotationState.sortColumn) {
-      // No sort column set — return alphabetical order (matching app.js default)
+      if (window.AppState && AppState.customGenomeOrder) {
+        var orderMap = new Map();
+        AppState.customGenomeOrder.forEach(function(g, i) { orderMap.set(g, i); });
+        return genomes.slice().sort(function(a, b) {
+          var hasA = orderMap.has(a), hasB = orderMap.has(b);
+          if (hasA && hasB) return orderMap.get(a) - orderMap.get(b);
+          if (hasA) return -1;
+          if (hasB) return 1;
+          return String(a).localeCompare(String(b));
+        });
+      }
       return genomes.slice().sort();
     }
 

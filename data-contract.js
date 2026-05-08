@@ -9,6 +9,7 @@ const AppState = {
   allGenomes: [],
   referenceGenome: null,
   visibleGenomes: new Set(),
+  customGenomeOrder: null, // string[] | null — greedy gene-similarity ordering
 };
 
 // ─── Gene Annotation State ────────────────────────────────────────────────────

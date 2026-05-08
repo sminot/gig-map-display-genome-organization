@@ -477,8 +477,25 @@
       }
     }
 
-    tooltip.style.left = (event.clientX + 12) + 'px';
-    tooltip.style.top  = (event.clientY + 12) + 'px';
+    // Position tooltip near the cursor, flipping sides when it would overflow
+    // the viewport, and hard-clamping so it never exits the screen.
+    const OFFSET = 12;
+    const tw = tooltip.offsetWidth;
+    const th = tooltip.offsetHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let left = event.clientX + OFFSET;
+    let top  = event.clientY + OFFSET;
+
+    if (left + tw > vw) left = event.clientX - OFFSET - tw;
+    if (top  + th > vh) top  = event.clientY - OFFSET - th;
+
+    left = Math.max(0, Math.min(left, vw - tw));
+    top  = Math.max(0, Math.min(top,  vh - th));
+
+    tooltip.style.left = left + 'px';
+    tooltip.style.top  = top  + 'px';
     tooltip.setAttribute('aria-hidden', 'false');
   }
 
