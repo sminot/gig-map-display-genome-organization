@@ -140,8 +140,8 @@
     }
 
     var fields   = result.meta.fields;
-    var idField  = fields[0];
-    var dataCols = fields.slice(1);
+    var idField  = fields.indexOf('genome_id') !== -1 ? 'genome_id' : fields[0];
+    var dataCols = fields.filter(function(f) { return f !== idField; });
 
     var rawData = new Map();
     for (var i = 0; i < result.data.length; i++) {
@@ -159,12 +159,13 @@
     GenomeAnnotationState.groupColumn   = null;
     GenomeAnnotationState.groupScale    = null;
     GenomeAnnotationState.groupDomain   = [];
-    GenomeAnnotationState.labelColumn   = null;
-    GenomeAnnotationState.sortColumn    = null;
-    GenomeAnnotationState.sortAscending = true;
-    GenomeAnnotationState.scale         = null;
-    GenomeAnnotationState.domain        = [];
-    GenomeAnnotationState.loadedURL     = loadedURL;
+    GenomeAnnotationState.labelColumn    = null;
+    GenomeAnnotationState.tooltipColumns = [];
+    GenomeAnnotationState.sortColumn     = null;
+    GenomeAnnotationState.sortAscending  = true;
+    GenomeAnnotationState.scale          = null;
+    GenomeAnnotationState.domain         = [];
+    GenomeAnnotationState.loadedURL      = loadedURL;
 
     var labelEl = el('genome-annotation-file-label');
     if (labelEl) labelEl.textContent = label;
@@ -231,7 +232,16 @@
 
   window.setGenomeLabelColumn = setGenomeLabelColumn;
 
-  // ─── 6. setGenomeSortColumn ───────────────────────────────────────────────────
+  // ─── 6. setGenomeTooltipColumns ──────────────────────────────────────────────
+
+  function setGenomeTooltipColumns(cols) {
+    GenomeAnnotationState.tooltipColumns = Array.isArray(cols) ? cols.slice() : [];
+    if (typeof window.onStateChanged === 'function') window.onStateChanged();
+  }
+
+  window.setGenomeTooltipColumns = setGenomeTooltipColumns;
+
+  // ─── 7. setGenomeSortColumn ───────────────────────────────────────────────────
 
   function setGenomeSortColumn(colName, ascending) {
     GenomeAnnotationState.sortColumn    = colName;
@@ -271,10 +281,11 @@
     GenomeAnnotationState.groupColumn   = null;
     GenomeAnnotationState.groupScale    = null;
     GenomeAnnotationState.groupDomain   = [];
-    GenomeAnnotationState.labelColumn   = null;
-    GenomeAnnotationState.sortColumn    = null;
-    GenomeAnnotationState.sortAscending = true;
-    GenomeAnnotationState.palette       = 'Tableau10';
+    GenomeAnnotationState.labelColumn    = null;
+    GenomeAnnotationState.tooltipColumns = [];
+    GenomeAnnotationState.sortColumn     = null;
+    GenomeAnnotationState.sortAscending  = true;
+    GenomeAnnotationState.palette        = 'Tableau10';
     GenomeAnnotationState.scale         = null;
     GenomeAnnotationState.domain        = [];
     GenomeAnnotationState.loadedURL     = null;

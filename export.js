@@ -204,6 +204,7 @@
       '<html>',
       '<head>',
       '  <meta charset="UTF-8">',
+      '  <meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:">',
       '  <title>Pangenome Viewer Export</title>',
       '  <style>',
       '    body { margin: 0; background: #1a1a2e; display: flex; justify-content: center; align-items: center; min-height: 100vh; }',

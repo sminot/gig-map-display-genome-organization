@@ -3,6 +3,14 @@
 
   const ZOOM_FACTOR = 1.15;
   let _dragging = false;
+  let _urlWriteTimer = null;
+
+  function scheduleURLWrite() {
+    if (_urlWriteTimer) clearTimeout(_urlWriteTimer);
+    _urlWriteTimer = setTimeout(function () {
+      if (typeof window.writeURLParams === 'function') window.writeURLParams();
+    }, 600);
+  }
 
   function getCanvas() {
     return document.getElementById('main-canvas');
@@ -36,6 +44,7 @@
   }
 
   function handleMouseUp() {
+    if (_dragging) scheduleURLWrite();
     _dragging = false;
   }
 
@@ -49,6 +58,7 @@
     }
     const cur = window.ZoomState.zoomLevel;
     window.ZoomState.setZoomLevel(e.deltaY < 0 ? cur * ZOOM_FACTOR : cur / ZOOM_FACTOR);
+    scheduleURLWrite();
   }
 
   function handleMouseLeave() {

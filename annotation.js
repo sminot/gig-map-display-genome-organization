@@ -4,8 +4,8 @@
  * Responsibilities:
  *   - File upload / drag-and-drop wiring     (initAnnotationUpload)
  *   - Gzip detection + CSV parsing           (loadGeneAnnotationFile)
- *   - Column activation and scale building   (setGeneAnnotationColumn)
- *   - Per-gene color and value lookups       (getGeneAnnotationColor, etc.)
+ *   - Category column selection              (setGeneAnnotationCategoryColumn)
+ *   - Per-gene color lookups                 (getGeneAnnotationColor)
  *   - Legend rendering                       (renderGeneAnnotationLegend)
  *
  * Depends on:
@@ -92,177 +92,166 @@
 
   window.initAnnotationUpload = initAnnotationUpload;
 
-  // ─── 2. loadGeneAnnotationFile ────────────────────────────────────────────────
+  // ─── 2. loadGeneAnnotationFile / loadGeneAnnotationFromURL ───────────────────
 
-  async function loadGeneAnnotationFile(file) {
-    var errorEl = el('annotation-error');
-    var labelEl = el('annotation-file-label');
+  function _applyGeneAnnotationText(text, label, loadedURL) {
+    var result = Papa.parse(text, {
+      header:         true,
+      dynamicTyping:  true,
+      skipEmptyLines: true,
+      delimiter:      '',
+      // Trim whitespace from every cell so " 0.5" is seen as 0.5, not a string.
+      transform:      function (v) { return typeof v === 'string' ? v.trim() : v; },
+    });
 
-    if (errorEl) {
-      errorEl.hidden = true;
-      errorEl.textContent = '';
+    if (!result.meta || !result.meta.fields || result.meta.fields.length < 1) {
+      throw new Error('Could not detect columns in the annotation file.');
     }
 
-    try {
-      var text = await window.readFileAsText(file);
+    var fields   = result.meta.fields;
+    var idField  = fields[0];
+    var dataCols = fields.slice(1);
 
-      var result = Papa.parse(text, {
-        header:         true,
-        dynamicTyping:  true,
-        skipEmptyLines: true,
-        delimiter:      '',
-      });
+    var rawData = new Map();
+    for (var i = 0; i < result.data.length; i++) {
+      var row    = result.data[i];
+      var rawId  = row[idField];
+      if (rawId === null || rawId === undefined) continue;
+      var geneId = String(rawId).trim();
+      if (!geneId) continue;
+      rawData.set(geneId, row);
+    }
 
-      if (!result.meta || !result.meta.fields || result.meta.fields.length < 1) {
-        throw new Error('Could not detect columns in the annotation file.');
-      }
+    GeneAnnotationState.rawData            = rawData;
+    GeneAnnotationState.columns            = dataCols;
+    GeneAnnotationState.categoryColumn     = null;
+    GeneAnnotationState.labelColumn        = null;
+    GeneAnnotationState.selectedCategories = new Set();
+    GeneAnnotationState.categoryValues     = [];
+    GeneAnnotationState.categoryCounts     = new Map();
+    GeneAnnotationState.scale              = null;
+    GeneAnnotationState.customColors       = new Map();
+    GeneAnnotationState.displayMode        = 'bars';
+    GeneAnnotationState.loadedURL          = loadedURL;
 
-      var fields    = result.meta.fields;
-      var idField   = fields[0];
-      var dataCols  = fields.slice(1);
+    var labelEl = el('annotation-file-label');
+    if (labelEl) labelEl.textContent = label;
 
-      // Build rawData map: geneId → row object
-      var rawData = new Map();
-      for (var i = 0; i < result.data.length; i++) {
-        var row = result.data[i];
-        var geneId = String(row[idField]);
-        if (geneId) rawData.set(geneId, row);
-      }
-
-      // Commit to shared state
-      GeneAnnotationState.rawData  = rawData;
-      GeneAnnotationState.columns  = dataCols;
-
-      // Reset column-level state from any previous load
-      GeneAnnotationState.activeColumn = null;
-      GeneAnnotationState.columnType   = null;
-      GeneAnnotationState.scale        = null;
-      GeneAnnotationState.domain       = [];
-
-      // Update label
-      if (labelEl) labelEl.textContent = file.name;
-      GeneAnnotationState.loadedURL = null;
-
-      // Notify the app
-      if (typeof window.onGeneAnnotationLoaded === 'function') {
-        window.onGeneAnnotationLoaded();
-      }
-
-    } catch (err) {
-      if (errorEl) {
-        errorEl.hidden      = false;
-        errorEl.textContent = err.message || String(err);
-      }
+    if (typeof window.onGeneAnnotationLoaded === 'function') {
+      window.onGeneAnnotationLoaded();
     }
   }
 
-  async function loadGeneAnnotationFromURL(url) {
+  async function loadGeneAnnotationFile(file) {
     var errorEl = el('annotation-error');
-    var labelEl = el('annotation-file-label');
     if (errorEl) { errorEl.hidden = true; errorEl.textContent = ''; }
     try {
-      var text = await window.readURLAsText(url);
-      // Reuse the same parsing logic via a synthetic file-like flow.
-      // Build a Blob so we can delegate to the existing text-handling path.
-      var result = Papa.parse(text, { header: true, dynamicTyping: true, skipEmptyLines: true, delimiter: '' });
-      if (!result.meta || !result.meta.fields || result.meta.fields.length < 1)
-        throw new Error('Could not detect columns in the annotation file.');
-      var fields   = result.meta.fields;
-      var idField  = fields[0];
-      var dataCols = fields.slice(1);
-      var rawData  = new Map();
-      for (var i = 0; i < result.data.length; i++) {
-        var row = result.data[i];
-        var geneId = String(row[idField]);
-        if (geneId) rawData.set(geneId, row);
-      }
-      GeneAnnotationState.rawData      = rawData;
-      GeneAnnotationState.columns      = dataCols;
-      GeneAnnotationState.activeColumn = null;
-      GeneAnnotationState.columnType   = null;
-      GeneAnnotationState.scale        = null;
-      GeneAnnotationState.domain       = [];
-      GeneAnnotationState.loadedURL    = url;
-      if (labelEl) labelEl.textContent = url.split('/').pop();
-      if (typeof window.onGeneAnnotationLoaded === 'function') window.onGeneAnnotationLoaded();
+      var text = await window.readFileAsText(file);
+      _applyGeneAnnotationText(text, file.name, null);
     } catch (err) {
       if (errorEl) { errorEl.hidden = false; errorEl.textContent = err.message || String(err); }
+    }
+  }
+
+  async function loadGeneAnnotationFromURL(url, silent) {
+    var errorEl = el('annotation-error');
+    if (!silent && errorEl) { errorEl.hidden = true; errorEl.textContent = ''; }
+    try {
+      var text = await window.readURLAsText(url);
+      _applyGeneAnnotationText(text, url.split('/').pop(), url);
+    } catch (err) {
+      if (!silent && errorEl) { errorEl.hidden = false; errorEl.textContent = err.message || String(err); }
     }
   }
 
   window.loadGeneAnnotationFile    = loadGeneAnnotationFile;
   window.loadGeneAnnotationFromURL = loadGeneAnnotationFromURL;
 
-  // ─── 3. setGeneAnnotationColumn ───────────────────────────────────────────────
+  // ─── 3. setGeneAnnotationCategoryColumn ──────────────────────────────────────
 
-  function setGeneAnnotationColumn(colName) {
-    GeneAnnotationState.activeColumn = colName;
-
-    // Collect all non-null values for this column
-    var values = [];
-    GeneAnnotationState.rawData.forEach(function (row) {
-      var v = row[colName];
-      if (v !== null && v !== undefined && v !== '') {
-        values.push(v);
-      }
-    });
-
-    // Determine type: continuous if every non-null value is a finite number
-    var isContinuous = values.length > 0 && values.every(function (v) {
-      return typeof v === 'number' && isFinite(v);
-    });
-
-    if (isContinuous) {
-      GeneAnnotationState.columnType = 'continuous';
-
-      var min = d3.min(values);
-      var max = d3.max(values);
-      GeneAnnotationState.domain = [min, max];
-      GeneAnnotationState.scale  = d3
-        .scaleSequential(d3.interpolateViridis)
-        .domain([min, max]);
-
+  function setGeneAnnotationCategoryColumn(colName) {
+    GeneAnnotationState.categoryColumn = colName || null;
+    GeneAnnotationState.selectedCategories = new Set();
+    if (colName) {
+      var counts = new Map();
+      GeneAnnotationState.rawData.forEach(function(row) {
+        var v = row[colName];
+        if (v === null || v === undefined || v === '') return;
+        var s = String(v);
+        counts.set(s, (counts.get(s) || 0) + 1);
+      });
+      var values = Array.from(counts.keys()).sort(function(a, b) {
+        return (counts.get(b) || 0) - (counts.get(a) || 0);
+      });
+      GeneAnnotationState.categoryValues = values;
+      GeneAnnotationState.categoryCounts = counts;
+      GeneAnnotationState.scale = d3.scaleOrdinal(window.getPalette('Tableau10')).domain(values);
     } else {
-      GeneAnnotationState.columnType = 'categorical';
-
-      // Sort unique string values for a stable legend order
-      var unique = Array.from(new Set(values.map(function (v) { return String(v); }))).sort();
-      GeneAnnotationState.domain = unique;
-      GeneAnnotationState.scale  = d3
-        .scaleOrdinal(window.getPalette(GeneAnnotationState.paletteOverride || 'Tableau10'))
-        .domain(unique);
+      GeneAnnotationState.categoryValues = [];
+      GeneAnnotationState.categoryCounts = new Map();
+      GeneAnnotationState.scale = null;
     }
-
-    if (typeof window.onStateChanged === 'function') {
-      window.onStateChanged();
-    }
+    if (typeof window.onGeneAnnotationColumnChanged === 'function') window.onGeneAnnotationColumnChanged();
+    if (typeof window.onStateChanged === 'function') window.onStateChanged();
   }
 
-  window.setGeneAnnotationColumn = setGeneAnnotationColumn;
+  window.setGeneAnnotationCategoryColumn = setGeneAnnotationCategoryColumn;
 
-  // ─── 4. clearGeneAnnotationColumn / clearGeneAnnotation ─────────────────────
+  // ─── 4. setGeneAnnotationSelectedCategories ──────────────────────────────────
 
-  // Deactivates the column (scale, domain) without discarding the loaded file data.
-  function clearGeneAnnotationColumn() {
-    GeneAnnotationState.activeColumn = null;
-    GeneAnnotationState.columnType   = null;
-    GeneAnnotationState.scale        = null;
-    GeneAnnotationState.domain       = [];
-
-    if (typeof window.onStateChanged === 'function') {
-      window.onStateChanged();
-    }
+  function setGeneAnnotationSelectedCategories(arr) {
+    GeneAnnotationState.selectedCategories = new Set(arr || []);
+    if (typeof window.onStateChanged === 'function') window.onStateChanged();
   }
 
-  window.clearGeneAnnotationColumn = clearGeneAnnotationColumn;
+  window.setGeneAnnotationSelectedCategories = setGeneAnnotationSelectedCategories;
+
+  // ─── 5. toggleGeneAnnotationCategory ─────────────────────────────────────────
+
+  function toggleGeneAnnotationCategory(val, checked) {
+    if (checked) GeneAnnotationState.selectedCategories.add(String(val));
+    else GeneAnnotationState.selectedCategories.delete(String(val));
+    if (typeof window.onStateChanged === 'function') window.onStateChanged();
+  }
+
+  window.toggleGeneAnnotationCategory = toggleGeneAnnotationCategory;
+
+  // ─── 6. getGeneAnnotationColor ───────────────────────────────────────────────
+
+  function getGeneAnnotationColor(geneId) {
+    if (!GeneAnnotationState.categoryColumn || !GeneAnnotationState.scale) return null;
+    if (GeneAnnotationState.selectedCategories.size === 0) return null;
+    var row = GeneAnnotationState.rawData.get(String(geneId));
+    if (!row) return null;
+    var val = row[GeneAnnotationState.categoryColumn];
+    if (val === null || val === undefined || val === '') return null;
+    var s = String(val);
+    if (!GeneAnnotationState.selectedCategories.has(s)) return null;
+    return GeneAnnotationState.customColors.get(s) || GeneAnnotationState.scale(s);
+  }
+
+  function setGeneAnnotationCustomColor(category, hex) {
+    GeneAnnotationState.customColors.set(category, hex);
+    if (typeof window.onStateChanged === 'function') window.onStateChanged();
+  }
+
+  window.setGeneAnnotationCustomColor = setGeneAnnotationCustomColor;
+
+  window.getGeneAnnotationColor = getGeneAnnotationColor;
+
+  // ─── 8. clearGeneAnnotation ──────────────────────────────────────────────────
 
   function clearGeneAnnotation() {
-    GeneAnnotationState.rawData      = new Map();
-    GeneAnnotationState.columns      = [];
-    GeneAnnotationState.activeColumn = null;
-    GeneAnnotationState.columnType   = null;
-    GeneAnnotationState.scale        = null;
-    GeneAnnotationState.domain       = [];
+    GeneAnnotationState.rawData            = new Map();
+    GeneAnnotationState.columns            = [];
+    GeneAnnotationState.categoryColumn     = null;
+    GeneAnnotationState.labelColumn        = null;
+    GeneAnnotationState.selectedCategories = new Set();
+    GeneAnnotationState.categoryValues     = [];
+    GeneAnnotationState.categoryCounts     = new Map();
+    GeneAnnotationState.scale              = null;
+    GeneAnnotationState.customColors       = new Map();
+    GeneAnnotationState.loadedURL          = null;
 
     var labelEl    = el('annotation-file-label');
     var controlsEl = el('annotation-controls');
@@ -270,84 +259,12 @@
     if (labelEl)    labelEl.textContent = '';
     if (controlsEl) controlsEl.hidden   = true;
 
-    if (typeof window.onStateChanged === 'function') {
-      window.onStateChanged();
-    }
+    if (typeof window.onStateChanged === 'function') window.onStateChanged();
   }
 
   window.clearGeneAnnotation = clearGeneAnnotation;
 
-  // ─── 5. getGeneAnnotationColor ────────────────────────────────────────────────
-
-  function getGeneAnnotationColor(geneId) {
-    if (!GeneAnnotationState.activeColumn || !GeneAnnotationState.scale) {
-      return null;
-    }
-
-    var row = GeneAnnotationState.rawData.get(String(geneId));
-    if (!row) return null;
-
-    var value = row[GeneAnnotationState.activeColumn];
-    if (value === null || value === undefined || value === '') return null;
-
-    if (GeneAnnotationState.columnType === 'categorical') {
-      return GeneAnnotationState.scale(String(value));
-    }
-
-    if (GeneAnnotationState.columnType === 'continuous') {
-      var num = typeof value === 'number' ? value : parseFloat(value);
-      if (!isFinite(num)) return null;
-      return GeneAnnotationState.scale(num);
-    }
-
-    return null;
-  }
-
-  window.getGeneAnnotationColor = getGeneAnnotationColor;
-
-  // ─── 6. getGeneAnnotationBarFraction ──────────────────────────────────────────
-
-  function getGeneAnnotationBarFraction(geneId) {
-    if (GeneAnnotationState.columnType !== 'continuous' || !GeneAnnotationState.scale) {
-      return null;
-    }
-
-    var row = GeneAnnotationState.rawData.get(String(geneId));
-    if (!row) return null;
-
-    var value = row[GeneAnnotationState.activeColumn];
-    if (value === null || value === undefined || value === '') return null;
-
-    var num = typeof value === 'number' ? value : parseFloat(value);
-    if (!isFinite(num)) return null;
-
-    var domain = GeneAnnotationState.domain; // [min, max]
-    var min    = domain[0];
-    var max    = domain[1];
-    if (max === min) return 1; // avoid division by zero
-
-    return (num - min) / (max - min);
-  }
-
-  window.getGeneAnnotationBarFraction = getGeneAnnotationBarFraction;
-
-  // ─── 7. getGeneAnnotationValue ────────────────────────────────────────────────
-
-  function getGeneAnnotationValue(geneId) {
-    if (!GeneAnnotationState.activeColumn) return null;
-
-    var row = GeneAnnotationState.rawData.get(String(geneId));
-    if (!row) return null;
-
-    var value = row[GeneAnnotationState.activeColumn];
-    if (value === null || value === undefined || value === '') return null;
-
-    return value;
-  }
-
-  window.getGeneAnnotationValue = getGeneAnnotationValue;
-
-  // ─── 8. renderGeneAnnotationLegend ───────────────────────────────────────────
+  // ─── 9. renderGeneAnnotationLegend ───────────────────────────────────────────
 
   function renderGeneAnnotationLegend() {
     var legendEl = el('annotation-legend');
@@ -356,73 +273,47 @@
     // Clear existing content
     legendEl.innerHTML = '';
 
-    if (!GeneAnnotationState.activeColumn || !GeneAnnotationState.scale) {
+    if (!GeneAnnotationState.categoryColumn || !GeneAnnotationState.scale) {
+      return;
+    }
+
+    if (GeneAnnotationState.selectedCategories.size === 0) {
       return;
     }
 
     // Title
     var title = document.createElement('div');
     title.className   = 'legend-title';
-    title.textContent = GeneAnnotationState.activeColumn;
+    title.textContent = GeneAnnotationState.categoryColumn;
     legendEl.appendChild(title);
 
-    if (GeneAnnotationState.columnType === 'categorical') {
-      var itemsWrapper = document.createElement('div');
-      itemsWrapper.className = 'legend-items';
+    var itemsWrapper = document.createElement('div');
+    itemsWrapper.className = 'legend-items';
 
-      var domain = GeneAnnotationState.domain;
-      for (var i = 0; i < domain.length; i++) {
-        var val   = domain[i];
-        var color = GeneAnnotationState.scale(val);
+    // Only show selected categories, in sorted order
+    var sortedSelected = Array.from(GeneAnnotationState.selectedCategories).sort();
+    for (var i = 0; i < sortedSelected.length; i++) {
+      var val   = sortedSelected[i];
+      var color = GeneAnnotationState.customColors.get(val) || GeneAnnotationState.scale(val);
 
-        var row = document.createElement('div');
-        row.className = 'legend-item';
+      var rowEl = document.createElement('div');
+      rowEl.className = 'legend-item';
 
-        var swatch = document.createElement('span');
-        swatch.className            = 'legend-swatch';
-        swatch.style.background     = color;
-        swatch.setAttribute('aria-hidden', 'true');
+      var swatch = document.createElement('span');
+      swatch.className            = 'legend-swatch';
+      swatch.style.background     = color;
+      swatch.setAttribute('aria-hidden', 'true');
 
-        var label = document.createElement('span');
-        label.className   = 'legend-label';
-        label.textContent = val;
+      var label = document.createElement('span');
+      label.className   = 'legend-label';
+      label.textContent = val;
 
-        row.appendChild(swatch);
-        row.appendChild(label);
-        itemsWrapper.appendChild(row);
-      }
-
-      legendEl.appendChild(itemsWrapper);
-
-    } else if (GeneAnnotationState.columnType === 'continuous') {
-      var contWrapper = document.createElement('div');
-      contWrapper.className = 'legend-continuous';
-
-      var gradBar = document.createElement('div');
-      gradBar.className  = 'legend-gradient-bar';
-      // Approximate viridis with known CSS stops
-      gradBar.style.background =
-        'linear-gradient(to right, #440154, #31688e, #35b779, #fde725)';
-      gradBar.setAttribute('aria-hidden', 'true');
-
-      var labelsRow = document.createElement('div');
-      labelsRow.className = 'legend-gradient-labels';
-
-      var minLabel = document.createElement('span');
-      minLabel.className   = 'legend-gradient-min';
-      minLabel.textContent = GeneAnnotationState.domain[0];
-
-      var maxLabel = document.createElement('span');
-      maxLabel.className   = 'legend-gradient-max';
-      maxLabel.textContent = GeneAnnotationState.domain[1];
-
-      labelsRow.appendChild(minLabel);
-      labelsRow.appendChild(maxLabel);
-
-      contWrapper.appendChild(gradBar);
-      contWrapper.appendChild(labelsRow);
-      legendEl.appendChild(contWrapper);
+      rowEl.appendChild(swatch);
+      rowEl.appendChild(label);
+      itemsWrapper.appendChild(rowEl);
     }
+
+    legendEl.appendChild(itemsWrapper);
   }
 
   window.renderGeneAnnotationLegend = renderGeneAnnotationLegend;

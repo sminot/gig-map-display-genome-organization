@@ -22,7 +22,8 @@ const GeneAnnotationState = {
   categoryValues:     [],        // string[] — all unique values, sorted
   categoryCounts:     new Map(), // value → count in rawData
   scale:              null,      // d3 ordinal scale (value → color)
-  displayMode:        'bars',    // 'bars' | 'arrows'
+  customColors:       new Map(), // category → hex color override
+  displayMode:        'bars',
   loadedURL:          null,
 };
 
@@ -36,6 +37,7 @@ const GenomeAnnotationState = {
   groupScale:    null,      // d3 ordinal scale | null
   groupDomain:   [],        // unique sorted values for groupColumn
   labelColumn:   null,      // string | null — column shown as genome name in tooltip
+  tooltipColumns: [],       // string[] — extra columns shown in mouseover
   sortColumn:    null,      // string | null — column used to sort rings
   sortAscending: true,
   palette:       'Tableau10', // name of the active D3 palette

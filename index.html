@@ -164,15 +164,7 @@
                 <div id="annotation-selection-stats" class="annotation-stats"></div>
               </div>
 
-              <div id="annotation-display-mode" class="control-row" hidden>
-                <label class="control-label">Style</label>
-                <div class="btn-group">
-                  <button id="annot-mode-bars"   class="btn-toggle active" type="button">Bars</button>
-                  <button id="annot-mode-arrows" class="btn-toggle"        type="button">Arrows</button>
-                </div>
-              </div>
-
-              <button id="clear-annotation-btn" class="btn-text-danger" type="button">Clear</button>
+<button id="clear-annotation-btn" class="btn-text-danger" type="button">Clear</button>
             </div>
 
             <div id="annotation-legend" class="legend-container"></div>
@@ -215,6 +207,11 @@
                   <option value="Accent">Accent</option>
                 </select>
               </div>
+              <div class="control-row" style="align-items:flex-start">
+                <label for="genome-tooltip-columns-select" class="control-label" style="padding-top:4px">Tooltip cols.</label>
+                <select id="genome-tooltip-columns-select" class="select-control select-control-sm" multiple size="4">
+                </select>
+              </div>
               <div class="control-row">
                 <label for="genome-sort-column-select" class="control-label">Sort by</label>
                 <select id="genome-sort-column-select" class="select-control select-control-sm">
@@ -228,6 +225,7 @@
                   <option value="desc">Descending</option>
                 </select>
               </div>
+              <div id="genome-annotation-stats" class="annotation-stats" hidden></div>
               <button id="clear-genome-annotation-btn" class="btn-text-danger" type="button">Clear</button>
             </div>
 
@@ -303,6 +301,12 @@
         <div id="viz-container" class="viz-container">
           <canvas id="main-canvas" aria-label="Pangenome circular visualization"></canvas>
           <svg id="overlay-svg" aria-hidden="true"></svg>
+        </div>
+
+        <!-- Zoom region indicator (shown when zoomed) -->
+        <div id="zoom-info" class="zoom-info" hidden>
+          <span id="zoom-info-text"></span>
+          <button id="zoom-info-close" class="zoom-info-close" title="Exit zoom" aria-label="Exit zoom">&#x2715;</button>
         </div>
 
         <!-- Zoom hint -->

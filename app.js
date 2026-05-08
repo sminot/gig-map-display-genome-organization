@@ -134,16 +134,7 @@ async function loadFile(file) {
   errorMessage.textContent = '';
 
   try {
-    if (typeof DecompressionStream === 'undefined') {
-      throw new Error(
-        'Your browser does not support gzip decompression. ' +
-        'Please use Chrome, Firefox, or Edge.'
-      );
-    }
-
-    const ds           = new DecompressionStream('gzip');
-    const decompressed = file.stream().pipeThrough(ds);
-    const text         = await new Response(decompressed).text();
+    const text = await window.readFileAsText(file);
 
     await processMainCSVText(text);
 
@@ -153,6 +144,7 @@ async function loadFile(file) {
 
   } catch (err) {
     loadingIndicator.hidden  = true;
+    if (AppState.rows && AppState.rows.length > 0) controlsPanel.hidden = false;
     errorMessage.hidden      = false;
     errorMessage.textContent = err.message || String(err);
   }
@@ -178,6 +170,7 @@ async function loadFileFromURL(url) {
 
   } catch (err) {
     loadingIndicator.hidden  = true;
+    if (AppState.rows && AppState.rows.length > 0) controlsPanel.hidden = false;
     errorMessage.hidden      = false;
     errorMessage.textContent = err.message || String(err);
   }
@@ -293,27 +286,15 @@ function buildRenderData() {
   // ── Step 6: Pre-resolve annotation data ───────────────────────────────────
   // Annotation functions (from annotation.js/genome-annotation.js) may not yet
   // exist on the first call, so we guard every access.
-  const annotActive       = !!(window.GeneAnnotationState && window.GeneAnnotationState.activeColumn);
-  const annotIsContinuous = annotActive && window.GeneAnnotationState.columnType === 'continuous';
-  const annotColumnName   = annotActive ? window.GeneAnnotationState.activeColumn : null;
+  const GAS = window.GeneAnnotationState;
+  const annotActive      = !!(GAS && GAS.categoryColumn);
+  const annotDisplayMode = (GAS && GAS.displayMode) || 'bars';
 
-  const geneAnnotColors       = new Map();
-  const geneAnnotBarFractions = new Map();
-  const geneAnnotValues       = new Map();
-
-  if (annotActive) {
+  const geneAnnotColors = new Map();
+  if (annotActive && GAS.selectedCategories.size > 0) {
     for (const geneId of referenceGenes.keys()) {
       const color = window.getGeneAnnotationColor ? window.getGeneAnnotationColor(geneId) : null;
       if (color) geneAnnotColors.set(geneId, color);
-
-      if (annotIsContinuous) {
-        const frac = window.getGeneAnnotationBarFraction
-          ? window.getGeneAnnotationBarFraction(geneId) : null;
-        if (frac !== null) geneAnnotBarFractions.set(geneId, frac);
-      }
-
-      const val = window.getGeneAnnotationValue ? window.getGeneAnnotationValue(geneId) : null;
-      if (val !== null) geneAnnotValues.set(geneId, val);
     }
   }
 
@@ -334,11 +315,8 @@ function buildRenderData() {
     visibleGenomes,
     colorScale,
     annotActive,
-    annotIsContinuous,
-    annotColumnName,
+    annotDisplayMode,
     geneAnnotColors,
-    geneAnnotBarFractions,
-    geneAnnotValues,
     genomeColors,
   };
 
