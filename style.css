@@ -81,6 +81,13 @@ body {
   overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
+  transition: width 0.2s ease, border-right-color 0.2s ease;
+}
+
+.sidebar.collapsed {
+  width: 0;
+  overflow: hidden;
+  border-right-color: transparent;
 }
 
 .sidebar::-webkit-scrollbar {
@@ -99,6 +106,54 @@ body {
   padding: var(--spacing-lg) var(--spacing-md) var(--spacing-md);
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.sidebar-collapse-btn {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+.sidebar-collapse-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.sidebar-expand-btn {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 200;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+.sidebar-expand-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
 }
 
 .app-title {

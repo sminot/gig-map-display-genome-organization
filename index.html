@@ -13,11 +13,23 @@
   <body>
     <div class="app-layout">
 
+      <!-- Floating expand button — visible only when sidebar is collapsed -->
+      <button id="sidebar-expand-btn" class="sidebar-expand-btn" aria-label="Expand sidebar" type="button" hidden>
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </button>
+
       <!-- ── Left Sidebar ─────────────────────────────────────────────── -->
       <aside class="sidebar" aria-label="Controls">
 
         <header class="sidebar-header">
           <h1 class="app-title">Pangenome Viewer</h1>
+          <button id="sidebar-collapse-btn" class="sidebar-collapse-btn" aria-label="Collapse sidebar" type="button">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
         </header>
 
         <!-- ── File Inputs (always visible) ──────────────────────────── -->
