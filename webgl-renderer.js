@@ -199,14 +199,29 @@ void main() { fragColor = vColor; }
     const cy = canvas.height / 2;
     const { blowInner, ANN_W, GEN_W } = computeRingGeometry(rd, cx, cy);
 
-    const instances = [];
+    const numGenomes  = rd.visibleGenomes  ? rd.visibleGenomes.length  : 0;
+    const numRefGenes = rd.referenceGenes  ? rd.referenceGenes.size    : 0;
+
+    // Pre-allocate a typed array sized to the worst case (all genomes × all genes
+    // plus one annotation ring). Writing directly into a Float32Array avoids the
+    // dynamic-resize overhead of a plain JS array and the extra copy that
+    // `new Float32Array(jsArray)` would require at the end — both of which become
+    // significant with 1 000+ genomes.
+    const maxInstances = numGenomes * numRefGenes + numRefGenes;
+    const buf = new Float32Array(maxInstances * 8);
+    let ptr = 0;
 
     function push(geoStart, geoEnd, rInner, rOuter, color) {
-      const [r, g, b, a] = color;
-      instances.push(geoStart, geoEnd, rInner, rOuter, r, g, b, a);
+      buf[ptr    ] = geoStart;
+      buf[ptr + 1] = geoEnd;
+      buf[ptr + 2] = rInner;
+      buf[ptr + 3] = rOuter;
+      buf[ptr + 4] = color[0];
+      buf[ptr + 5] = color[1];
+      buf[ptr + 6] = color[2];
+      buf[ptr + 7] = color[3];
+      ptr += 8;
     }
-
-    const numGenomes = rd.visibleGenomes ? rd.visibleGenomes.length : 0;
 
     // ── Genome rings — start immediately at blowInner (annotation is outermost) ─
     if (rd.visibleGenomes && rd.referenceGenes) {
@@ -243,12 +258,13 @@ void main() { fragColor = vColor; }
       });
     }
 
-    numDataInstances = instances.length / 8;
+    numDataInstances = ptr / 8;
 
     if (numDataInstances === 0) return;
 
     gl.bindBuffer(gl.ARRAY_BUFFER, dataBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(instances), gl.DYNAMIC_DRAW);
+    // Upload only the filled portion — buf may be larger than what was written.
+    gl.bufferData(gl.ARRAY_BUFFER, buf.subarray(0, ptr), gl.DYNAMIC_DRAW);
   }
 
   // ── Background buffer ─────────────────────────────────────────────────────
