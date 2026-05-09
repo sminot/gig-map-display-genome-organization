@@ -103,6 +103,9 @@ async function processMainCSVText(text) {
     'length', 'pident', 'coverage',
   ]);
 
+  // Build the genome set in the same pass as the row objects so we iterate
+  // result.data only once instead of twice.
+  const genomeSet = new Set();
   AppState.rows = result.data.map((raw) => {
     const row = {};
     for (const [key, value] of Object.entries(raw)) {
@@ -111,10 +114,10 @@ async function processMainCSVText(text) {
         ? (typeof value === 'number' ? value : parseFloat(value))
         : value;
     }
+    genomeSet.add(row.genome);
     return row;
   });
 
-  const genomeSet = new Set(AppState.rows.map((r) => r.genome));
   AppState.allGenomes = [...genomeSet].sort();
 
   AppState.referenceGenome = AppState.allGenomes[0] ?? null;
