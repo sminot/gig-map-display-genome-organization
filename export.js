@@ -237,6 +237,42 @@
     }, 10000);
   }
 
+  // ─── copyEmbedCode ──────────────────────────────────────────────────────────
+
+  function copyEmbedCode() {
+    var url     = window.location.href;
+    var snippet = '<iframe src="' + url + '" width="100%" height="600" frameborder="0" style="border:none" allowfullscreen></iframe>';
+    var btn     = getEl('embed-copy-btn');
+
+    function setLabel(text) {
+      if (!btn) return;
+      var orig = btn.textContent;
+      btn.textContent = text;
+      setTimeout(function () { btn.textContent = orig; }, 1500);
+    }
+
+    function execCopy(text) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;top:0;left:0;width:2px;height:2px;opacity:0;border:none;outline:none;resize:none';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { /* silent */ }
+      document.body.removeChild(ta);
+      return ok;
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(snippet)
+        .then(function () { setLabel('Copied!'); })
+        .catch(function () { setLabel(execCopy(snippet) ? 'Copied!' : 'Copy failed'); });
+    } else {
+      setLabel(execCopy(snippet) ? 'Copied!' : 'Copy failed');
+    }
+  }
+
   // ─── initExportButtons ──────────────────────────────────────────────────────
 
   /**
@@ -245,27 +281,15 @@
    * is not present at call time it is silently skipped.
    */
   function initExportButtons() {
-    var pngBtn = getEl('export-png-btn');
-    var pdfBtn = getEl('export-pdf-btn');
-    var htmlBtn = getEl('export-html-btn');
+    var pngBtn   = getEl('export-png-btn');
+    var pdfBtn   = getEl('export-pdf-btn');
+    var htmlBtn  = getEl('export-html-btn');
+    var embedBtn = getEl('embed-copy-btn');
 
-    if (pngBtn) {
-      pngBtn.addEventListener('click', function () {
-        exportAsPNG();
-      });
-    }
-
-    if (pdfBtn) {
-      pdfBtn.addEventListener('click', function () {
-        exportAsPDF();
-      });
-    }
-
-    if (htmlBtn) {
-      htmlBtn.addEventListener('click', function () {
-        exportAsHTML();
-      });
-    }
+    if (pngBtn)   pngBtn.addEventListener('click',   function () { exportAsPNG(); });
+    if (pdfBtn)   pdfBtn.addEventListener('click',   function () { exportAsPDF(); });
+    if (htmlBtn)  htmlBtn.addEventListener('click',  function () { exportAsHTML(); });
+    if (embedBtn) embedBtn.addEventListener('click', function () { copyEmbedCode(); });
   }
 
   // ─── Expose on window ───────────────────────────────────────────────────────
@@ -274,5 +298,6 @@
   window.exportAsPNG = exportAsPNG;
   window.exportAsPDF = exportAsPDF;
   window.exportAsHTML = exportAsHTML;
+  window.copyEmbedCode = copyEmbedCode;
 
 })();

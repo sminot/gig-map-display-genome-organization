@@ -72,6 +72,9 @@
       }
     }
 
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar && sidebar.classList.contains('collapsed')) params.set('sidebar', '0');
+
     if (window.GenomeAnnotationState) {
       if (GenomeAnnotationState.loadedURL) params.set('genomeAnnot', GenomeAnnotationState.loadedURL);
       if (GenomeAnnotationState.colorColumn) params.set('genomeColorCol', GenomeAnnotationState.colorColumn);
@@ -458,6 +461,17 @@
     if (genomeUrl && dzGenome) dzGenome.hidden = genomeUrl.value.trim().length > 0;
   }
 
+  // ─── Sidebar toggle ──────────────────────────────────────────────────────
+
+  function setSidebarCollapsed(collapsed) {
+    const sidebar    = document.querySelector('.sidebar');
+    const expandBtn  = document.getElementById('sidebar-expand-btn');
+    if (!sidebar) return;
+    sidebar.classList.toggle('collapsed', collapsed);
+    if (expandBtn) expandBtn.hidden = !collapsed;
+    writeURLParams();
+  }
+
   // ─── Boot ─────────────────────────────────────────────────────────────────
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -767,6 +781,21 @@
     });
 
     syncDropZoneVisibility();
+
+    // Sidebar collapse / expand
+    const collapseBtn = document.getElementById('sidebar-collapse-btn');
+    if (collapseBtn) {
+      collapseBtn.addEventListener('click', () => setSidebarCollapsed(true));
+    }
+    const expandBtn = document.getElementById('sidebar-expand-btn');
+    if (expandBtn) {
+      expandBtn.addEventListener('click', () => setSidebarCollapsed(false));
+    }
+
+    // Apply initial sidebar state from URL
+    if (new URLSearchParams(initialURLSearch).get('sidebar') === '0') {
+      setSidebarCollapsed(true);
+    }
   });
 
   // ─── Callbacks for app.js ─────────────────────────────────────────────────
