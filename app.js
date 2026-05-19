@@ -276,8 +276,14 @@ function buildRenderData() {
   }
 
   // ── Step 4: Color scale ────────────────────────────────────────────────────
+  const isLightTheme = document.documentElement.getAttribute('data-theme') === 'light';
+  // Light mode uses Dark2 first — all 8 are clearly visible on white.
+  // Dark mode keeps Tableau10 + Pastel1 (suits dark canvas).
+  const colorScheme = isLightTheme
+    ? d3.schemeDark2.concat(d3.schemeTableau10)
+    : d3.schemeTableau10.concat(d3.schemePastel1);
   const colorScale = d3
-    .scaleOrdinal(d3.schemeTableau10.concat(d3.schemePastel1))
+    .scaleOrdinal(colorScheme)
     .domain(AppState.allGenomes);
 
   // ── Step 5: Visible genomes (sorted — respects genome annotation sort column) ─
