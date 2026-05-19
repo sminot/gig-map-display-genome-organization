@@ -21,6 +21,112 @@
   // Cached d3 color scale — built once after data loads, reused for toggle dots.
   let colorScale = null;
 
+  // ─── Reference genome combobox ───────────────────────────────────────────────
+  const refCombobox = (() => {
+    let options = []; // { value, label }[]
+    let activeIdx = -1;
+
+    const getInput = () => document.getElementById('reference-select-input');
+    const getList  = () => document.getElementById('ref-combobox-list');
+
+    function renderList(filtered) {
+      const list = getList();
+      if (!list) return;
+      const cur = getInput()?.dataset.value || '';
+      list.innerHTML = '';
+      activeIdx = -1;
+      filtered.forEach(opt => {
+        const li = document.createElement('li');
+        li.className = 'ref-combobox-option' + (opt.value === cur ? ' selected' : '');
+        li.setAttribute('role', 'option');
+        li.dataset.value = opt.value;
+        li.textContent = opt.label;
+        li.addEventListener('mousedown', e => { e.preventDefault(); choose(opt.value); });
+        list.appendChild(li);
+      });
+    }
+
+    function openList() {
+      const input = getInput(); const list = getList();
+      if (!input || !list) return;
+      const q = input.value.trim().toLowerCase();
+      const filtered = q
+        ? options.filter(o => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q))
+        : options;
+      renderList(filtered);
+      list.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+      const sel = list.querySelector('.selected');
+      if (sel) sel.scrollIntoView({ block: 'nearest' });
+    }
+
+    function closeList() {
+      const input = getInput(); const list = getList();
+      if (list) list.hidden = true;
+      if (input) {
+        input.setAttribute('aria-expanded', 'false');
+        // Restore display to current value if user abandoned typing
+        const v = input.dataset.value || '';
+        const opt = options.find(o => o.value === v);
+        input.value = opt ? opt.label : v;
+      }
+    }
+
+    function choose(value) {
+      setValue(value);
+      window.setReference(value);
+      buildGenomeToggles();
+      closeList();
+    }
+
+    function setValue(value) {
+      const input = getInput();
+      if (!input) return;
+      const opt = options.find(o => o.value === value);
+      input.value = opt ? opt.label : value;
+      input.dataset.value = value;
+    }
+
+    function populate() {
+      options = AppState.allGenomes.map(g => ({ value: g, label: getGenomeDisplayName(g) }));
+      setValue(AppState.referenceGenome);
+    }
+
+    function refresh() {
+      options = AppState.allGenomes.map(g => ({ value: g, label: getGenomeDisplayName(g) }));
+      setValue(getInput()?.dataset.value || AppState.referenceGenome || '');
+    }
+
+    function setupListeners() {
+      const input = getInput();
+      if (!input) return;
+      input.addEventListener('focus', () => { activeIdx = -1; openList(); });
+      input.addEventListener('input', () => { activeIdx = -1; openList(); });
+      input.addEventListener('blur',  () => setTimeout(closeList, 150));
+      input.addEventListener('keydown', e => {
+        const items = [...(getList()?.querySelectorAll('.ref-combobox-option') ?? [])];
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          activeIdx = Math.min(activeIdx + 1, items.length - 1);
+          items.forEach((el, i) => el.classList.toggle('active', i === activeIdx));
+          items[activeIdx]?.scrollIntoView({ block: 'nearest' });
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          activeIdx = Math.max(activeIdx - 1, 0);
+          items.forEach((el, i) => el.classList.toggle('active', i === activeIdx));
+          items[activeIdx]?.scrollIntoView({ block: 'nearest' });
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (activeIdx >= 0 && items[activeIdx]) { choose(items[activeIdx].dataset.value); }
+        } else if (e.key === 'Escape') {
+          closeList(); input.blur();
+        }
+      });
+    }
+
+    return { populate, setValue, refresh, setupListeners };
+  })();
+
   // Snapshot of the URL the page was loaded with. applyURLParams always reads
   // from this so that writeURLParams → history.replaceState calls (which happen
   // before async annotation loads complete) cannot erase params that haven't
@@ -103,7 +209,7 @@
       const ref = params.get('ref');
       if (ref && AppState.allGenomes.includes(ref) && ref !== AppState.referenceGenome) {
         window.setReference(ref);
-        document.getElementById('reference-select').value = ref;
+        refCombobox.setValue(ref);
       }
 
       const hiddenStr = params.get('hidden');
@@ -530,11 +636,8 @@
       window.loadFileFromURL(initDataURL);
     }
 
-    // Reference genome selector
-    document.getElementById('reference-select').addEventListener('change', (e) => {
-      window.setReference(e.target.value);
-      buildGenomeToggles();
-    });
+    // Reference genome combobox
+    refCombobox.setupListeners();
 
     // Genome search filter
     const genomeSearch = document.getElementById('genome-search');
@@ -796,6 +899,32 @@
     if (new URLSearchParams(initialURLSearch).get('sidebar') === '0') {
       setSidebarCollapsed(true);
     }
+
+    // Theme toggle
+    const themeBtn = document.getElementById('theme-toggle-btn');
+    if (themeBtn) {
+      const stored = localStorage.getItem('theme');
+      if (stored === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      themeBtn.addEventListener('click', () => {
+        const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+        if (isLight) {
+          document.documentElement.removeAttribute('data-theme');
+          localStorage.setItem('theme', 'dark');
+        } else {
+          document.documentElement.setAttribute('data-theme', 'light');
+          localStorage.setItem('theme', 'light');
+        }
+        // Rebuild color scale for the new theme, then re-render everything
+        const _nowLight = document.documentElement.getAttribute('data-theme') === 'light';
+        if (colorScale && AppState && AppState.allGenomes) {
+          colorScale = d3
+            .scaleOrdinal(_nowLight ? d3.schemeDark2.concat(d3.schemeTableau10) : d3.schemeTableau10.concat(d3.schemePastel1))
+            .domain(AppState.allGenomes);
+          buildGenomeToggles();
+        }
+        if (typeof window.onStateChanged === 'function') window.onStateChanged();
+      });
+    }
   });
 
   // ─── Callbacks for app.js ─────────────────────────────────────────────────
@@ -808,21 +937,13 @@
     const simBtn = document.getElementById('genome-gene-similarity-btn');
     if (simBtn) { simBtn.textContent = 'Sort by gene content'; simBtn.disabled = false; }
 
+    const _nowLight = document.documentElement.getAttribute('data-theme') === 'light';
     colorScale = d3
-      .scaleOrdinal(d3.schemeTableau10.concat(d3.schemePastel1))
+      .scaleOrdinal(_nowLight ? d3.schemeDark2.concat(d3.schemeTableau10) : d3.schemeTableau10.concat(d3.schemePastel1))
       .domain(AppState.allGenomes);
 
-    // Populate reference genome selector
-    const select = document.getElementById('reference-select');
-    select.innerHTML = '';
-    for (const genome of AppState.allGenomes) {
-      const option = document.createElement('option');
-      option.value = genome;
-      option.textContent = getGenomeDisplayName(genome);
-      option.title = genome;
-      select.appendChild(option);
-    }
-    select.value = AppState.referenceGenome;
+    // Populate reference genome combobox
+    refCombobox.populate();
 
     buildGenomeToggles();
 
@@ -1108,12 +1229,7 @@
   }
 
   function refreshGenomeDisplayNames() {
-    const select = document.getElementById('reference-select');
-    if (select) {
-      for (const opt of select.options) {
-        opt.textContent = getGenomeDisplayName(opt.value);
-      }
-    }
+    refCombobox.refresh();
     buildGenomeToggles();
   }
 

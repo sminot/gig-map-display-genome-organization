@@ -272,10 +272,14 @@ void main() { fragColor = vColor; }
   function updateBgBuffer(focusAngle, dataHalfSpan, blowInner, blowOuter) {
     const geoStart = focusAngle - Math.PI;
     const geoEnd   = focusAngle + Math.PI;
+    const _isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const bgRGBA = _isLight
+      ? [0.886, 0.910, 0.941, 0.95]   // slate-200 tint for light mode
+      : [0.086, 0.129, 0.243, 0.92];  // dark navy for dark mode
     const data = new Float32Array([
       geoStart, geoEnd,
       blowInner - 2, blowOuter + 2,
-      0.086, 0.129, 0.243, 0.92
+      ...bgRGBA
     ]);
     gl.bindBuffer(gl.ARRAY_BUFFER, bgBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
