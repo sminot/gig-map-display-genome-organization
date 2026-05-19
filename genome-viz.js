@@ -192,7 +192,8 @@
       text.setAttribute('transform', `rotate(${rotateDeg},${lx},${ly})`);
       text.setAttribute('font-size', '11');
       text.setAttribute('font-family', 'system-ui, sans-serif');
-      text.setAttribute('fill', '#94a3b8');
+      const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+      text.setAttribute('fill', isLight ? '#475569' : '#94a3b8');
       text.textContent = contig.id;
       svg.appendChild(text);
     }
@@ -509,7 +510,8 @@
   function drawAnnotationRing(ctx, renderData, innerR, outerR, makeArcPath) {
     // Dim background for the full track width.
     const bgPath = makeArcPath(innerR, outerR, 0, 2 * Math.PI);
-    if (bgPath) { ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fill(new Path2D(bgPath)); }
+    const _isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    if (bgPath) { ctx.fillStyle = _isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)'; ctx.fill(new Path2D(bgPath)); }
 
     const isArrows = renderData.annotDisplayMode === 'arrows';
 
