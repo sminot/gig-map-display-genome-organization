@@ -262,16 +262,8 @@
       // Pre-fill annotation URL fields from params (auto-load happens after annotations load).
       const geneAnnotUrl   = params.get('geneAnnot');
       const genomeAnnotUrl = params.get('genomeAnnot');
-      if (geneAnnotUrl) {
-        const inp = document.getElementById('gene-annot-url-input');
-        if (inp) inp.value = geneAnnotUrl;
-        window.loadGeneAnnotationFromURL(geneAnnotUrl);
-      }
-      if (genomeAnnotUrl) {
-        const inp = document.getElementById('genome-annot-url-input');
-        if (inp) inp.value = genomeAnnotUrl;
-        window.loadGenomeAnnotationFromURL(genomeAnnotUrl);
-      }
+      if (geneAnnotUrl)   window.loadGeneAnnotationFromURL(geneAnnotUrl);
+      if (genomeAnnotUrl) window.loadGenomeAnnotationFromURL(genomeAnnotUrl);
     }
 
     if (scope === 'geneAnnotation') {
@@ -551,22 +543,6 @@
     statsEl.hidden = false;
   }
 
-  // ─── Drop zone visibility sync ────────────────────────────────────────────
-
-  function syncDropZoneVisibility() {
-    const alignUrl = document.getElementById('data-url-input');
-    const dzMain   = document.getElementById('drop-zone');
-    if (alignUrl && dzMain) dzMain.hidden = alignUrl.value.trim().length > 0;
-
-    const geneUrl = document.getElementById('gene-annot-url-input');
-    const dzGene  = document.getElementById('annotation-drop-zone');
-    if (geneUrl && dzGene) dzGene.hidden = geneUrl.value.trim().length > 0;
-
-    const genomeUrl = document.getElementById('genome-annot-url-input');
-    const dzGenome  = document.getElementById('genome-annotation-drop-zone');
-    if (genomeUrl && dzGenome) dzGenome.hidden = genomeUrl.value.trim().length > 0;
-  }
-
   // ─── Sidebar toggle ──────────────────────────────────────────────────────
 
   function setSidebarCollapsed(collapsed) {
@@ -581,12 +557,9 @@
   // ─── Boot ─────────────────────────────────────────────────────────────────
 
   function _boot() {
-    window.initFileUpload();
     window.initViz();
     window.initZoomInteraction();
     window.initWebGLRenderer();
-    window.initAnnotationUpload();
-    window.initGenomeAnnotationUpload();
     window.initExportButtons();
 
     // Apply gap / wedge-span URL params immediately so the UI is correct before data loads.
@@ -856,33 +829,6 @@
       });
     }
 
-    // ── URL loading buttons ──────────────────────────────────────────────────
-
-    function wireURLBtn(btnId, inputId, loader) {
-      const btn = document.getElementById(btnId);
-      const inp = document.getElementById(inputId);
-      if (!btn || !inp) return;
-      btn.addEventListener('click', () => {
-        const url = inp.value.trim();
-        if (url) loader(url);
-      });
-      inp.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { const url = inp.value.trim(); if (url) loader(url); }
-      });
-    }
-
-    wireURLBtn('data-url-btn',       'data-url-input',        (url) => window.loadFileFromURL(url));
-    wireURLBtn('gene-annot-url-btn', 'gene-annot-url-input',  (url) => window.loadGeneAnnotationFromURL(url));
-    wireURLBtn('genome-annot-url-btn','genome-annot-url-input',(url) => window.loadGenomeAnnotationFromURL(url));
-
-    // Hide drop zones in real time as URL inputs are filled.
-    ['data-url-input', 'gene-annot-url-input', 'genome-annot-url-input'].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) el.addEventListener('input', syncDropZoneVisibility);
-    });
-
-    syncDropZoneVisibility();
-
     // Sidebar collapse / expand
     const collapseBtn = document.getElementById('sidebar-collapse-btn');
     if (collapseBtn) {
@@ -963,22 +909,16 @@
       if (!urlParams.get('geneAnnot') && !GeneAnnotationState.loadedURL) {
         const autoGeneUrl = AppState.loadedDataURL.replace('genomes.aln.csv.gz', 'genes.annot.csv.gz');
         if (autoGeneUrl !== AppState.loadedDataURL) {
-          const inp = document.getElementById('gene-annot-url-input');
-          if (inp && !inp.value.trim()) inp.value = autoGeneUrl;
           window.loadGeneAnnotationFromURL(autoGeneUrl, true);
         }
       }
       if (!urlParams.get('genomeAnnot') && !GenomeAnnotationState.loadedURL) {
         const autoGenomeUrl = AppState.loadedDataURL.replace('genomes.aln.csv.gz', 'genomes.annot.csv.gz');
         if (autoGenomeUrl !== AppState.loadedDataURL) {
-          const inp = document.getElementById('genome-annot-url-input');
-          if (inp && !inp.value.trim()) inp.value = autoGenomeUrl;
           window.loadGenomeAnnotationFromURL(autoGenomeUrl, true);
         }
       }
     }
-
-    syncDropZoneVisibility();
 
     window.onStateChanged();
   };
