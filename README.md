@@ -22,6 +22,7 @@ A browser-based tool for visualizing gene presence/absence patterns across a col
   - [Main alignment file](#main-alignment-file)
   - [Gene annotation file](#gene-annotation-file)
   - [Genome annotation file](#genome-annotation-file)
+- [Self-hosting with a single HTML file](#self-hosting-with-a-single-html-file)
 - [For developers](#for-developers)
 
 ---
@@ -151,6 +152,52 @@ Optional. CSV or TSV, with or without gzip compression.
 
 - **Column 1:** Genome ID — must match `genome` values in the alignment file.
 - **Remaining columns:** Categorical annotation values (one column per annotation type).
+
+---
+
+## Self-hosting with a single HTML file
+
+A single `index.html` loads all app scripts from the [jsDelivr](https://www.jsdelivr.com/) CDN — no build step, no npm, and no server-side logic required. Copy the HTML file, add your data, and serve the folder.
+
+### How it works
+
+All JS and CSS are fetched at runtime from jsDelivr using URLs of the form:
+
+```
+https://cdn.jsdelivr.net/gh/sminot/gig-map-display-genome-organization@VERSION/filename
+```
+
+On startup the app auto-loads alignment data from a `data/` folder located next to `index.html`.
+
+### Setup
+
+1. **Download `index.html`** from the latest release at
+   https://github.com/sminot/gig-map-display-genome-organization/releases/latest
+   (inside the `pangenome-viewer-vX.Y.Z.zip` asset), or copy `test/index.html` directly from the repo.
+
+2. **Add your data.** Create a `data/` folder next to `index.html` and place your alignment file there. The app looks for `data/fanimalis.genomes.aln.csv.gz` by default; either name your file `fanimalis.genomes.aln.csv.gz` or pass `?data=data/your-file.genomes.aln.csv.gz` as a URL parameter. Optionally include matching `*.genes.annot.csv.gz` and `*.genomes.annot.csv.gz` annotation files with the same prefix.
+
+3. **Serve the folder** with any static file server:
+   ```bash
+   python3 -m http.server 8080
+   ```
+
+4. **Open your browser** to the served URL (e.g. http://localhost:8080).
+
+### Script tag structure
+
+```html
+<!-- All app scripts loaded from jsDelivr CDN — no build step needed -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/sminot/gig-map-display-genome-organization@v1.0.0/style.css" />
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5/papaparse.min.js"></script>
+<!-- ... (see test/index.html for the full list) ... -->
+<script src="https://cdn.jsdelivr.net/gh/sminot/gig-map-display-genome-organization@v1.0.0/controls.js"></script>
+```
+
+### Pinning to a specific version
+
+The `@v1.0.0` segment in each jsDelivr URL pins all scripts to that release. To upgrade, replace the version string in every `<script>` and `<link>` tag in `index.html` with the new version number.
 
 ---
 
