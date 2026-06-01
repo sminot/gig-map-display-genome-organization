@@ -38,5 +38,5 @@ only 11 lines and contains no application code.
 
 ## Upgrading
 
-Change the `@v1.0.2` version tag in `index.html`'s single `<script>` tag.
+Change the `@v1.0.3` version tag in `index.html`'s single `<script>` tag.
 Latest releases: https://github.com/sminot/gig-map-display-genome-organization/releases
