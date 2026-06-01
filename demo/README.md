@@ -30,8 +30,13 @@ different name, pass it as a URL parameter:
 http://localhost:8080/?data=data/myproject.genomes.aln.csv.gz
 ```
 
+## How index.html works
+
+The entire app — layout, styles, and JavaScript — is loaded by a single
+`pangenome-loader.js` script pulled from jsDelivr. `index.html` itself is
+only 11 lines and contains no application code.
+
 ## Upgrading
 
-The version pinned in `index.html` (`@v1.0.1`) can be updated to any later
-release by replacing that string in every `<script>` and `<link>` tag.
+Change the `@v1.0.2` version tag in `index.html`'s single `<script>` tag.
 Latest releases: https://github.com/sminot/gig-map-display-genome-organization/releases

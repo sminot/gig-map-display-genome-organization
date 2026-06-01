@@ -580,7 +580,7 @@
 
   // ─── Boot ─────────────────────────────────────────────────────────────────
 
-  document.addEventListener('DOMContentLoaded', () => {
+  function _boot() {
     window.initFileUpload();
     window.initViz();
     window.initZoomInteraction();
@@ -923,7 +923,15 @@
         if (typeof window.onStateChanged === 'function') window.onStateChanged();
       });
     }
-  });
+  }
+
+  // Run boot immediately if DOM is already ready (e.g. loaded via pangenome-loader.js),
+  // otherwise wait for DOMContentLoaded as usual.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _boot);
+  } else {
+    _boot();
+  }
 
   // ─── Callbacks for app.js ─────────────────────────────────────────────────
 
