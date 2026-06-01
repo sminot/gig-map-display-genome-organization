@@ -629,7 +629,7 @@
 
     // Auto-load data file from ?data= query param, or default to local data/.
     const initParams = new URLSearchParams(location.search);
-    const initDataURL = initParams.get('data') || 'data/fanimalis.genomes.aln.csv.gz';
+    const initDataURL = initParams.get('data') || 'data/genomes.aln.csv.gz';
     const inp = document.getElementById('data-url-input');
     if (inp) inp.value = initDataURL;
     window.loadFileFromURL(initDataURL);
@@ -953,7 +953,7 @@
     if (AppState.loadedDataURL) {
       const urlParams = new URLSearchParams(location.search);
       if (!urlParams.get('geneAnnot') && !GeneAnnotationState.loadedURL) {
-        const autoGeneUrl = AppState.loadedDataURL.replace('.genomes.aln.csv.gz', '.genes.annot.csv.gz');
+        const autoGeneUrl = AppState.loadedDataURL.replace('genomes.aln.csv.gz', 'genes.annot.csv.gz');
         if (autoGeneUrl !== AppState.loadedDataURL) {
           const inp = document.getElementById('gene-annot-url-input');
           if (inp && !inp.value.trim()) inp.value = autoGeneUrl;
@@ -961,7 +961,7 @@
         }
       }
       if (!urlParams.get('genomeAnnot') && !GenomeAnnotationState.loadedURL) {
-        const autoGenomeUrl = AppState.loadedDataURL.replace('.genomes.aln.csv.gz', '.genomes.annot.csv.gz');
+        const autoGenomeUrl = AppState.loadedDataURL.replace('genomes.aln.csv.gz', 'genomes.annot.csv.gz');
         if (autoGenomeUrl !== AppState.loadedDataURL) {
           const inp = document.getElementById('genome-annot-url-input');
           if (inp && !inp.value.trim()) inp.value = autoGenomeUrl;
