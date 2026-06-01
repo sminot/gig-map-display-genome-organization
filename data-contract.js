@@ -116,14 +116,16 @@ window.getPalette = function getPalette(name) {
  * @returns {Promise<string>}
  */
 window.readURLAsText = async function readURLAsText(url) {
-  if (!/^https?:\/\//i.test(url)) {
-    throw new Error('Only http:// and https:// URLs are supported.');
+  // Block non-http(s) absolute URLs (e.g. ftp://) but allow relative paths.
+  if (/^[a-z][a-z0-9+\-.]*:\/\//i.test(url) && !/^https?:\/\//i.test(url)) {
+    throw new Error('Only http://, https://, and relative URLs are supported.');
   }
   var resp;
   try {
     resp = await fetch(url);
   } catch (e) {
-    throw new Error('Could not fetch URL — check that the server allows CORS requests. (' + e.message + ')');
+    var corsHint = /^https?:\/\//i.test(url) ? ' — check that the server allows CORS requests' : '';
+    throw new Error('Could not fetch URL' + corsHint + '. (' + e.message + ')');
   }
   if (!resp.ok) throw new Error('HTTP ' + resp.status + ' fetching URL.');
 
