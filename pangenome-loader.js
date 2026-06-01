@@ -10,7 +10,7 @@
  *   <script src="https://cdn.jsdelivr.net/gh/sminot/gig-map-display-genome-organization@v1.0.2/pangenome-loader.js"></script>
  */
 (function () {
-  var VERSION = 'v1.0.2';
+  var VERSION = 'v1.0.3';
   var CDN     = 'https://cdn.jsdelivr.net/gh/sminot/gig-map-display-genome-organization@' + VERSION;
 
   // ── 1. Stylesheet ──────────────────────────────────────────────────────────
@@ -39,56 +39,6 @@
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
         </header>
-
-        <section class="upload-section" aria-label="File upload">
-          <div id="drop-zone" class="drop-zone" role="button" tabindex="0"
-               aria-label="Drop zone: drop genomes.aln.csv.gz here or press Enter to open file picker">
-            <svg class="drop-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-            </svg>
-            <p class="drop-primary">Drop <code>genomes.aln.csv.gz</code> here</p>
-            <p class="drop-secondary">or click to browse</p>
-            <input type="file" id="file-input" accept=".gz,.csv" aria-hidden="true" tabindex="-1" />
-          </div>
-        </section>
-
-        <div class="url-load-section">
-          <div class="url-load-row">
-            <span class="url-load-label">Alignment URL</span>
-            <div class="url-load-input-group">
-              <input type="text" id="data-url-input" class="url-load-input" placeholder="https://…/genomes.aln.csv.gz">
-              <button id="data-url-btn" class="btn-url">Load</button>
-            </div>
-          </div>
-          <div class="url-load-row">
-            <span class="url-load-label">Gene annot. URL</span>
-            <div class="url-load-input-group">
-              <input type="text" id="gene-annot-url-input" class="url-load-input" placeholder="https://…/genes.annot.csv.gz">
-              <button id="gene-annot-url-btn" class="btn-url">Load</button>
-            </div>
-          </div>
-          <div class="url-load-row">
-            <span class="url-load-label">Genome annot. URL</span>
-            <div class="url-load-input-group">
-              <input type="text" id="genome-annot-url-input" class="url-load-input" placeholder="https://…/genomes.annot.csv.gz">
-              <button id="genome-annot-url-btn" class="btn-url">Load</button>
-            </div>
-          </div>
-        </div>
-
-        <div id="annotation-drop-zone" class="drop-zone-compact" role="button" tabindex="0"
-             aria-label="Drop zone: drop gene annotation CSV here or press Enter to browse">
-          <span class="drop-zone-compact-text">Gene annot.: Drop CSV / TSV&nbsp;&nbsp;<span id="annotation-file-label" class="upload-file-label"></span></span>
-          <input type="file" id="annotation-file-input" accept=".csv,.tsv,.txt,.gz" aria-hidden="true" tabindex="-1"/>
-        </div>
-        <div id="annotation-error" class="error-message" role="alert" hidden></div>
-
-        <div id="genome-annotation-drop-zone" class="drop-zone-compact" role="button" tabindex="0"
-             aria-label="Drop zone: drop genome annotation CSV here or press Enter to browse">
-          <span class="drop-zone-compact-text">Genome annot.: Drop CSV / TSV&nbsp;&nbsp;<span id="genome-annotation-file-label" class="upload-file-label"></span></span>
-          <input type="file" id="genome-annotation-file-input" accept=".csv,.tsv,.txt,.gz" aria-hidden="true" tabindex="-1"/>
-        </div>
-        <div id="genome-annotation-error" class="error-message" role="alert" hidden></div>
 
         <div id="loading-indicator" class="loading-indicator" aria-live="polite" aria-busy="true" hidden>
           <span class="spinner" aria-hidden="true"></span>
