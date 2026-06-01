@@ -50,7 +50,7 @@ No data is uploaded to any server. All processing happens in your browser.
 2. Drag and drop your `genomes.aln.csv.gz` file onto the page (or use the file picker).
 3. The circular figure renders immediately. Use the sidebar to select a reference genome, toggle which genomes are shown, or upload annotation files.
 
-An example dataset is available in the `example/` folder of this repository (`example/genomes.aln.csv.gz`).
+Example datasets are available in the `example/` folder of this repository (e.g. `example/fanimalis.genomes.aln.csv.gz`).
 
 ---
 
@@ -175,7 +175,7 @@ On startup the app auto-loads alignment data from a `data/` folder located next 
    https://github.com/sminot/gig-map-display-genome-organization/releases/latest
    (inside the `pangenome-viewer-vX.Y.Z.zip` asset), or copy `test/index.html` directly from the repo.
 
-2. **Add your data.** Create a `data/` folder next to `index.html` and place your alignment file there. The app looks for `data/fanimalis.genomes.aln.csv.gz` by default; either name your file `fanimalis.genomes.aln.csv.gz` or pass `?data=data/your-file.genomes.aln.csv.gz` as a URL parameter. Optionally include matching `*.genes.annot.csv.gz` and `*.genomes.annot.csv.gz` annotation files with the same prefix.
+2. **Add your data.** Create a `data/` folder next to `index.html` and place your alignment file there named `genomes.aln.csv.gz`. Optionally include matching `genes.annot.csv.gz` and `genomes.annot.csv.gz` annotation files in the same folder. To load a differently-named file, pass `?data=data/your-file.genomes.aln.csv.gz` as a URL parameter.
 
 3. **Serve the folder** with any static file server:
    ```bash
@@ -188,16 +188,16 @@ On startup the app auto-loads alignment data from a `data/` folder located next 
 
 ```html
 <!-- All app scripts loaded from jsDelivr CDN — no build step needed -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/sminot/gig-map-display-genome-organization@v1.0.0/style.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/sminot/gig-map-display-genome-organization@v1.0.1/style.css" />
 <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5/papaparse.min.js"></script>
 <!-- ... (see test/index.html for the full list) ... -->
-<script src="https://cdn.jsdelivr.net/gh/sminot/gig-map-display-genome-organization@v1.0.0/controls.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/sminot/gig-map-display-genome-organization@v1.0.1/controls.js"></script>
 ```
 
 ### Pinning to a specific version
 
-The `@v1.0.0` segment in each jsDelivr URL pins all scripts to that release. To upgrade, replace the version string in every `<script>` and `<link>` tag in `index.html` with the new version number.
+The `@v1.0.1` segment in each jsDelivr URL pins all scripts to that release. To upgrade, replace the version string in every `<script>` and `<link>` tag in `index.html` with the new version number.
 
 ---
 
