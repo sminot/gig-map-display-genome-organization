@@ -1,0 +1,21 @@
+services:
+  backend:
+    build: ./backend
+    environment:
+      DATASETS_DIR: /data/datasets
+      SESSION_DIR: /data/session
+    volumes:
+      # Point DATASETS_HOST at any folder of gig-map outputs (defaults to the
+      # committed R. torques fixture). Read-only so the app never mutates data.
+      - ${DATASETS_HOST:-./datasets}:/data/datasets:ro
+      # Session bookmarks are written here (host ./session).
+      - ./session:/data/session
+    ports:
+      - "18000:8000"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "18080:8080"

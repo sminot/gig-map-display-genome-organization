@@ -18,7 +18,8 @@ dependencies = [
     "statsmodels",
     "biopython",
     "plotly",
-    "gig_map_io @ git+https://github.com/sminot/gig-map-io.git",
+    # gig_map_io is installed separately (see backend/Dockerfile and README):
+    # its git remote is not yet published, so it is vendored under vendor/gig-map-io.
 ]
 
 [project.optional-dependencies]
