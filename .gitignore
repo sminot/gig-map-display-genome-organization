@@ -1,2 +1,7 @@
 example/
 .claude/
+
+# app runtime
+session/
+backend/.venv/
+frontend/node_modules/

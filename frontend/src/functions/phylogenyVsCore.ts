@@ -1,0 +1,20 @@
+import { defineParams, datasetSelect, binSelect } from '../schema/fields';
+import { makePlaceholder } from './PlaceholderRenderer';
+import type { FunctionModule } from './types';
+
+const params = defineParams({
+  pangenomeId: datasetSelect('Pangenome', 'pangenome'),
+  phylogenyId: datasetSelect('Phylogenies', 'phylogenies'),
+  bin: binSelect('Bin', { dependsOn: 'pangenomeId' }),
+  coreBin: binSelect('Core bin', { dependsOn: 'pangenomeId', optional: true }),
+});
+
+export const phylogenyVsCore: FunctionModule = {
+  id: 'phylogeny_vs_core',
+  title: 'Phylogeny vs Core',
+  category: 'Phylogeny',
+  description: 'Tanglegram comparing a bin tree to the core-genome tree, with concordance.',
+  family: 'svg',
+  params,
+  Renderer: makePlaceholder('svg'),
+};
