@@ -45,7 +45,8 @@ export default function App() {
     setRunning(true);
     setError(null);
     try {
-      const res = await api.runFunction(selected.id, params);
+      const body = selected.toRequest ? selected.toRequest(params) : params;
+      const res = await api.runFunction(selected.id, body as Record<string, unknown>);
       setResult(res);
       setLastRunParams(params);
     } catch (e) {

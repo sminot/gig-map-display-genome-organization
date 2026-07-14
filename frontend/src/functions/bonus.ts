@@ -1,9 +1,12 @@
-import { defineParams, datasetSelect, binSelect } from '../schema/fields';
+import { defineParams, datasetSelect, binSelect, text } from '../schema/fields';
 import { makePlaceholder } from './PlaceholderRenderer';
+import { RarefactionRenderer } from '../render/mosaic/RarefactionRenderer';
+import { BinSizeHistogramRenderer } from '../render/mosaic/BinSizeHistogramRenderer';
+import { BinStatsRenderer } from '../render/mosaic/BinStatsRenderer';
 import type { FunctionModule } from './types';
 
 // Bonus functions (ARCHITECTURE.md §4). Same registry pattern; exposed if the
-// backend implements them. Placeholder renderers until Wave-2.
+// backend implements them. enriched_terms keeps its placeholder renderer.
 
 export const rarefaction: FunctionModule = {
   id: 'rarefaction',
@@ -12,7 +15,7 @@ export const rarefaction: FunctionModule = {
   description: 'Pangenome accumulation curve as genomes are added.',
   family: 'mosaic',
   params: defineParams({ pangenomeId: datasetSelect('Pangenome', 'pangenome') }),
-  Renderer: makePlaceholder('mosaic'),
+  Renderer: RarefactionRenderer,
 };
 
 export const binSizeHistogram: FunctionModule = {
@@ -22,7 +25,7 @@ export const binSizeHistogram: FunctionModule = {
   description: 'Distribution of gene counts per bin.',
   family: 'mosaic',
   params: defineParams({ pangenomeId: datasetSelect('Pangenome', 'pangenome') }),
-  Renderer: makePlaceholder('mosaic'),
+  Renderer: BinSizeHistogramRenderer,
 };
 
 export const enrichedTerms: FunctionModule = {
@@ -45,9 +48,13 @@ export const binStats: FunctionModule = {
   description: 'Association statistics (AUC / odds-ratio / logistic) for a bin against a contrast.',
   family: 'mosaic',
   params: defineParams({
+    // pangenomeId sources the bin dropdown; the backend Params model ignores it.
     pangenomeId: datasetSelect('Pangenome', 'pangenome'),
     contrastId: datasetSelect('Contrast', 'contrast'),
-    bin: binSelect('Bin', { dependsOn: 'pangenomeId', optional: true }),
+    bin: binSelect('Bin', { dependsOn: 'pangenomeId' }),
+    metadataCol: text('Metadata column', { default: 'disease' }),
+    refGroup: text('Reference group', { default: '0' }),
+    compGroup: text('Comparison group', { default: '1' }),
   }),
-  Renderer: makePlaceholder('mosaic'),
+  Renderer: BinStatsRenderer,
 };

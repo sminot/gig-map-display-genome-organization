@@ -13,12 +13,25 @@ class Params(BaseModel):
     compGroup: str
 
 
+def _coerce_group(contrast, metadata_col: str, value: str):
+    """Match an incoming string param to a metadata value of the column's real dtype.
+
+    Metadata columns may be int/float/str (e.g. ``disease`` is int64 0/1), so a raw
+    string never matches. Pick the actual column value whose ``str()`` equals ``value``.
+    """
+    values = contrast.metadata[metadata_col].dropna().unique()
+    for v in values:
+        if str(v) == value:
+            return v
+    return value
+
+
 def run(params: Params, ctx: Context) -> dict:
     contrast = ctx.datasets.contrast(params.contrastId)
     common = dict(
         metadata_col=params.metadataCol,
-        ref_group=params.refGroup,
-        comp_group=params.compGroup,
+        ref_group=_coerce_group(contrast, params.metadataCol, params.refGroup),
+        comp_group=_coerce_group(contrast, params.metadataCol, params.compGroup),
         bin_id=params.bin,
     )
     return {

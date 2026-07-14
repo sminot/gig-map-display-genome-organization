@@ -1,5 +1,5 @@
 import { defineParams, datasetSelect, number } from '../schema/fields';
-import { makePlaceholder } from './PlaceholderRenderer';
+import { CoreGenome } from '../render/svg/CoreGenome';
 import type { FunctionModule } from './types';
 
 const params = defineParams({
@@ -19,5 +19,5 @@ export const coreGenome: FunctionModule = {
   description: 'Rank bins by genome prevalence and identify the core-genome bin.',
   family: 'svg',
   params,
-  Renderer: makePlaceholder('svg'),
+  Renderer: CoreGenome,
 };

@@ -26,4 +26,12 @@ export interface FunctionModule {
   /** Input schema built with defineParams(); rendered by the single SchemaForm. */
   params: ParamsDef;
   Renderer: Renderer;
+  /**
+   * Optional adapter from the flat SchemaForm params to the request body the
+   * backend expects. Used when a function's on-the-wire shape differs from the
+   * flat field list (e.g. genome_organization folds flat `overlay*` fields into
+   * a nested `overlay` object). App applies it on the run path; when absent the
+   * params are sent as-is.
+   */
+  toRequest?(params: Record<string, unknown>): unknown;
 }

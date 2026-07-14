@@ -1,5 +1,5 @@
 import { defineParams, datasetSelect, binSelect } from '../schema/fields';
-import { makePlaceholder } from './PlaceholderRenderer';
+import { Tanglegram } from '../render/svg/Tanglegram';
 import type { FunctionModule } from './types';
 
 const params = defineParams({
@@ -16,5 +16,5 @@ export const phylogenyVsCore: FunctionModule = {
   description: 'Tanglegram comparing a bin tree to the core-genome tree, with concordance.',
   family: 'svg',
   params,
-  Renderer: makePlaceholder('svg'),
+  Renderer: Tanglegram,
 };

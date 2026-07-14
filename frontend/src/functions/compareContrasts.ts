@@ -5,7 +5,7 @@ import {
   bool,
   number,
 } from '../schema/fields';
-import { makePlaceholder } from './PlaceholderRenderer';
+import { CompareContrastsRenderer } from '../render/mosaic/CompareContrastsRenderer';
 import type { FunctionModule } from './types';
 
 const params = defineParams({
@@ -24,5 +24,5 @@ export const compareContrasts: FunctionModule = {
   description: 'Match base vs comparator association contrasts by organism and compare significance categories.',
   family: 'mosaic',
   params,
-  Renderer: makePlaceholder('mosaic'),
+  Renderer: CompareContrastsRenderer,
 };

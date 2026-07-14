@@ -1,5 +1,6 @@
 import { defineParams, datasetSelect, genomeSelect, enumSelect, statColumn } from '../schema/fields';
-import { makePlaceholder } from './PlaceholderRenderer';
+import { GenomeOrganizationRenderer } from '../render/webgl/GenomeOrganizationRenderer';
+import { buildRequestBody } from '../render/webgl/renderData';
 import type { FunctionModule } from './types';
 
 // NOTE vs ARCHITECTURE.md §4.1: the contract's `overlay?:{contrastId,stat,channel}`
@@ -22,5 +23,10 @@ export const genomeOrganization: FunctionModule = {
   description: 'Circular genome map of gene alignments, colored by bin/identity with an optional association overlay.',
   family: 'webgl',
   params,
-  Renderer: makePlaceholder('webgl'),
+  Renderer: GenomeOrganizationRenderer,
+  // Fold flat overlay* fields into the nested `overlay` the backend expects, and
+  // drop referenceGenome from the wire body (the backend treats it as a hard row
+  // filter that would leave only the reference genome — see renderData.ts). The
+  // reference is applied client-side for the angular layout instead.
+  toRequest: buildRequestBody,
 };

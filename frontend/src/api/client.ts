@@ -52,6 +52,24 @@ export type RunResult =
   | { kind: 'json'; data: unknown }
   | { kind: 'plotly'; figure: unknown };
 
+// JSON sidecar for genome_organization (ARCHITECTURE.md §4.1). Fetched by the
+// WebGL renderer from POST /api/run/genome_organization/meta with the SAME body
+// as the main Arrow call (the generic runFunction only returns the table).
+export interface GenomeOrgContig {
+  genome: string;
+  contig: string;
+  len: number;
+}
+
+export interface GenomeOrganizationMeta {
+  genomes: string[];
+  contigs: GenomeOrgContig[];
+  bins: string[];
+  colorBy: string | null;
+  overlayByBin?: Record<string, number>;
+  overlayChannel?: 'arcColor' | 'outerTrack';
+}
+
 async function assertOk(res: Response): Promise<Response> {
   if (!res.ok) {
     let detail = '';
@@ -111,6 +129,22 @@ export async function runFunction(
     return { kind: 'plotly', figure: (data as { figure: unknown }).figure };
   }
   return { kind: 'json', data };
+}
+
+// Structured sidecar for a function that emits one (currently genome_organization).
+// Must be called with the same body used for the main Arrow run.
+export async function runFunctionMeta<T = unknown>(
+  functionId: string,
+  body: unknown,
+): Promise<T> {
+  const res = await assertOk(
+    await fetch(`${API_BASE}/run/${encodeURIComponent(functionId)}/meta`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  );
+  return (await res.json()) as T;
 }
 
 // Data-download path for exports: re-run the function forcing a CSV/JSON body

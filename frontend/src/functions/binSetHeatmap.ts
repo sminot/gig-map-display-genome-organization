@@ -1,5 +1,5 @@
 import { defineParams, datasetSelect, binMultiSelect } from '../schema/fields';
-import { makePlaceholder } from './PlaceholderRenderer';
+import { BinSetHeatmapRenderer } from '../render/mosaic/BinSetHeatmapRenderer';
 import type { FunctionModule } from './types';
 
 const params = defineParams({
@@ -14,5 +14,5 @@ export const binSetHeatmap: FunctionModule = {
   description: 'Presence heatmap of a set of bins across genomes, hierarchically clustered.',
   family: 'mosaic',
   params,
-  Renderer: makePlaceholder('mosaic'),
+  Renderer: BinSetHeatmapRenderer,
 };

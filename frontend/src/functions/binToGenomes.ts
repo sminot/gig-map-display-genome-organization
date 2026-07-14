@@ -1,5 +1,5 @@
 import { defineParams, datasetSelect, binSelect } from '../schema/fields';
-import { makePlaceholder } from './PlaceholderRenderer';
+import { BinToGenomesRenderer } from '../render/mosaic/BinToGenomesRenderer';
 import type { FunctionModule } from './types';
 
 const params = defineParams({
@@ -14,5 +14,5 @@ export const binToGenomes: FunctionModule = {
   description: 'Detection of a bin across genomes: per-genome gene counts and presence/absence.',
   family: 'mosaic',
   params,
-  Renderer: makePlaceholder('mosaic'),
+  Renderer: BinToGenomesRenderer,
 };

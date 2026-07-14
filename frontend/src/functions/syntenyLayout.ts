@@ -1,5 +1,5 @@
 import { defineParams, datasetSelect, binSelect } from '../schema/fields';
-import { makePlaceholder } from './PlaceholderRenderer';
+import { SyntenyLayout } from '../render/svg/SyntenyLayout';
 import type { FunctionModule } from './types';
 
 const params = defineParams({
@@ -14,5 +14,5 @@ export const syntenyLayout: FunctionModule = {
   description: 'Gene-arrow map of a bin from the pangenome gene coordinates.',
   family: 'svg',
   params,
-  Renderer: makePlaceholder('svg'),
+  Renderer: SyntenyLayout,
 };
