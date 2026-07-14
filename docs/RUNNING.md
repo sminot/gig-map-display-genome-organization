@@ -59,18 +59,15 @@ Edit the `ports:` entries in `docker-compose.yml` (`18080:8080` for the frontend
 
 ## The gig_map_io dependency
 
-The backend depends on the `gig_map_io` library. Its git remote
-(`github.com/sminot/gig-map-io`) does **not currently publish the package tree** (only a
-README/LICENSE are on `main`), so the library source is **vendored** under
-`backend/vendor/gig-map-io/` (pinned commit recorded in `SOURCE_COMMIT.txt`) and installed
-from there in `backend/Dockerfile`. Once the package is pushed to the remote, the Dockerfile
-can switch back to the commented git install and the vendored copy can be removed.
+The backend depends on the `gig_map_io` library, installed from its git remote
+(`git+https://github.com/sminot/gig-map-io.git`, declared in `backend/pyproject.toml` and
+installed in `backend/Dockerfile`).
 
 ## Local development (without Docker)
 
 ```bash
 # backend
-cd backend && uv venv --python 3.12 .venv && .venv/bin/python -m pip install -e ./vendor/gig-map-io -e '.[test]'
+cd backend && uv venv --python 3.12 .venv && .venv/bin/python -m pip install -e '.[test]'
 DATASETS_DIR=../datasets SESSION_DIR=../session .venv/bin/python -m uvicorn app.main:app --port 8000
 
 # frontend (separate shell; proxies /api -> :8000)

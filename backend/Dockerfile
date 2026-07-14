@@ -5,16 +5,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-
-# gig_map_io: install from the vendored source. The upstream git remote
-# (github.com/sminot/gig-map-io) is not yet published with the package tree;
-# once it is, this can become:  RUN pip install --no-cache-dir "gig_map_io @ git+https://github.com/sminot/gig-map-io.git"
-COPY vendor/gig-map-io ./vendor/gig-map-io
-RUN pip install --no-cache-dir ./vendor/gig-map-io
-
 COPY pyproject.toml ./
 COPY app ./app
 
+# gig_map_io is pulled from its git remote (declared in pyproject.toml).
 RUN pip install --no-cache-dir .
 
 ENV DATASETS_DIR=/data/datasets
