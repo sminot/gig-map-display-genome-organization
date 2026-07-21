@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { tableFromJSON } from 'apache-arrow';
-import type { RendererProps } from '../../functions/types';
+import type { RendererProps } from '../../figures/types';
+import { runFunctionMeta } from '../../api/client';
 import { useRegisterExport } from '../../session/exports';
 import { registerArrow, type VG } from './mosaicClient';
 import { MosaicChart } from './MosaicChart';
@@ -16,18 +17,6 @@ interface ClusterOrder {
   genomeOrder: string[];
 }
 
-// Self-contained fetch for the clustering-order sidecar (kept out of api/client.ts
-// to avoid collisions with the concurrent form/schema agent).
-async function fetchClusterOrder(params: Record<string, unknown>): Promise<ClusterOrder> {
-  const res = await fetch('/api/run/bin_set_heatmap/meta', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return (await res.json()) as ClusterOrder;
-}
-
 export function BinSetHeatmapRenderer({ params, result, selectedBin, onSelectBin }: RendererProps) {
   const table = result.kind === 'arrow' ? result.table : null;
   const records = useMemo(() => (table ? arrowToRecords(table) : []), [table]);
@@ -38,7 +27,7 @@ export function BinSetHeatmapRenderer({ params, result, selectedBin, onSelectBin
     let cancelled = false;
     setOrder(null);
     setOrderError(null);
-    fetchClusterOrder(params)
+    runFunctionMeta<ClusterOrder>(TABLE, params)
       .then((o) => {
         if (!cancelled) setOrder(o);
       })

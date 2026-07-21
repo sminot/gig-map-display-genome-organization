@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { RendererProps } from '../../functions/types';
+import type { RendererProps } from '../../figures/types';
 import * as api from '../../api/client';
 import type { GenomeOrganizationMeta, GenomeRow } from '../../api/client';
 import { useRegisterExport } from '../../session/exports';

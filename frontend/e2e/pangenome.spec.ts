@@ -38,7 +38,7 @@ async function shot(page: Page, name: string) {
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('.app-title')).toHaveText('Pangenome Explorer');
+  await expect(page.locator('.app-title')).toHaveText('gig-map figure generator');
 });
 
 test('1. genome_organization renders a non-blank WebGL canvas (+ overlay)', async ({ page }) => {

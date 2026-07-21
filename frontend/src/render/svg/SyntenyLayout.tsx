@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import type { RendererProps } from '../../functions/types';
+import type { RendererProps } from '../../figures/types';
 import { arrowPoints, linearScale, niceRound, type Direction } from './geometry';
 import { useSvgExport } from './useSvgExport';
 

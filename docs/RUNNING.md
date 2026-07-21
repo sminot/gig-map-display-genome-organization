@@ -1,8 +1,8 @@
-# Running the Pangenome Explorer (Docker app)
+# Running the gig-map figure generator (Docker app)
 
-The **Pangenome Explorer** is a full-stack interactive app (Python/FastAPI backend +
+The **gig-map figure generator** is a full-stack interactive app (Python/FastAPI backend +
 React/WebGL/Mosaic frontend) that reads gig-map output folders from a `datasets/`
-directory and serves seven analysis views. It supersedes the static single-page viewer
+directory and serves seven figure views. It supersedes the static single-page viewer
 (the legacy files at the repo root are kept and still deploy to GitHub Pages).
 
 Architecture and the backend↔frontend contract are documented in

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 from pydantic import BaseModel, Field
 
-from ..registry import Context, FunctionSpec
+from ..registry import Context, FigureSpec
 
 
 class Params(BaseModel):
@@ -16,7 +16,7 @@ def run(params: Params, ctx: Context) -> pd.DataFrame:
     return pg.rarefaction_curve_data(params.nReps)
 
 
-SPEC = FunctionSpec(
+SPEC = FigureSpec(
     id="rarefaction",
     title="Rarefaction curve",
     category="pangenome",

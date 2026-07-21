@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from scipy import stats
 from statsmodels.stats.multitest import multipletests
 
-from ..registry import Context, FunctionSpec
+from ..registry import Context, FigureSpec
 
 # The pangenome has no structured functional annotation (KEGG/GO/COG); the only
 # per-gene description is the free-text `combined_name` product string. We derive
@@ -92,7 +92,7 @@ def run(params: Params, ctx: Context) -> pd.DataFrame:
     return df
 
 
-SPEC = FunctionSpec(
+SPEC = FigureSpec(
     id="enriched_terms",
     title="Enriched terms",
     category="pangenome",

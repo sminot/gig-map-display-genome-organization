@@ -18,7 +18,7 @@ export type Renderer = FC<RendererProps>;
 
 // A single analysis function. Wave-2 agents replace ONLY `Renderer` for the
 // modules assigned to their family; everything else here is fixed by the contract.
-export interface FunctionModule {
+export interface FigureModule {
   id: string;
   title: string;
   category: string;

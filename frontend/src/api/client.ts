@@ -32,19 +32,29 @@ export interface GenomeRow {
   [key: string]: unknown;
 }
 
-export interface FunctionInfo {
+export interface FigureInfo {
   id: string;
   title: string;
   category: string;
   description: string;
 }
 
-export interface Bookmark {
+// The output directory figures are written to. `exists` reflects whether the
+// path is present on disk; `path` is null when none has been set.
+export interface OutputDir {
+  path: string | null;
+  exists: boolean;
+}
+
+// A saved figure: fully described by { figureType, params } plus the rendered
+// image(s). Round-trips through save/load with no per-figure-type handling.
+export interface FigureRecord {
   id: string;
-  functionId: string;
+  figureType: string;
   title: string;
   params: Record<string, unknown>;
   createdAt: string;
+  images: { format: 'png' | 'svg'; filename: string }[];
 }
 
 export type RunResult =
@@ -142,8 +152,8 @@ export async function getGenomes(id: string): Promise<GenomeRow[]> {
   return getJson<GenomeRow[]>(`/datasets/${encodeURIComponent(id)}/genomes`);
 }
 
-export async function getFunctions(): Promise<FunctionInfo[]> {
-  return getJson<FunctionInfo[]>('/functions');
+export async function getFunctions(): Promise<FigureInfo[]> {
+  return getJson<FigureInfo[]>('/functions');
 }
 
 export async function runFunction(
@@ -203,29 +213,54 @@ export async function fetchExport(
   return res.blob();
 }
 
-export async function listBookmarks(): Promise<Bookmark[]> {
-  return getJson<Bookmark[]>('/bookmarks');
+export async function getOutputDir(): Promise<OutputDir> {
+  return getJson<OutputDir>('/output-dir');
 }
 
-export async function createBookmark(input: {
-  functionId: string;
-  title: string;
-  params: Record<string, unknown>;
-}): Promise<Bookmark> {
+export async function setOutputDir(path: string): Promise<OutputDir> {
   const res = await assertOk(
-    await fetch(`${API_BASE}/bookmarks`, {
-      method: 'POST',
+    await fetch(`${API_BASE}/output-dir`, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+      body: JSON.stringify({ path }),
     }),
   );
-  return (await res.json()) as Bookmark;
+  return (await res.json()) as OutputDir;
 }
 
-export async function deleteBookmark(id: string): Promise<void> {
+export async function listFigures(): Promise<FigureRecord[]> {
+  return getJson<FigureRecord[]>('/figures');
+}
+
+export async function deleteFigure(id: string): Promise<void> {
   await assertOk(
-    await fetch(`${API_BASE}/bookmarks/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    await fetch(`${API_BASE}/figures/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   );
+}
+
+export function figureImageUrl(id: string, format: 'png' | 'svg'): string {
+  return `${API_BASE}/figures/${encodeURIComponent(id)}/image?format=${format}`;
+}
+
+// Persist the current figure. A figure is fully described by { figureType,
+// params }; the rendered image(s) travel as multipart file parts.
+export async function saveFigure(input: {
+  figureType: string;
+  title: string;
+  params: Record<string, unknown>;
+  images: { format: 'png' | 'svg'; blob: Blob }[];
+}): Promise<FigureRecord> {
+  const form = new FormData();
+  form.append('figureType', input.figureType);
+  form.append('title', input.title);
+  form.append('params', JSON.stringify(input.params));
+  for (const img of input.images) {
+    form.append(img.format === 'png' ? 'image_png' : 'image_svg', img.blob);
+  }
+  const res = await assertOk(
+    await fetch(`${API_BASE}/figures`, { method: 'POST', body: form }),
+  );
+  return (await res.json()) as FigureRecord;
 }
 
 export async function getLinks(): Promise<DatasetLink[]> {

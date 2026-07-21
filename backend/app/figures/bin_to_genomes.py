@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 from pydantic import BaseModel
 
-from ..registry import Context, FunctionSpec
+from ..registry import Context, FigureSpec
 
 PRESENCE_THRESHOLD = 0.5
 
@@ -23,7 +23,7 @@ def run(params: Params, ctx: Context) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
-SPEC = FunctionSpec(
+SPEC = FigureSpec(
     id="bin_to_genomes",
     title="Bin to genomes",
     category="pangenome",

@@ -2,9 +2,9 @@
 // RENDERER PLUGIN CONTRACT  (read this before touching a renderer, Wave-2)
 // ===========================================================================
 //
-// Each analysis function is a FunctionModule (see ./types.ts):
+// Each figure is a FigureModule (see ./types.ts):
 //
-//   interface FunctionModule {
+//   interface FigureModule {
 //     id: string;            // matches the backend functionId (POST /api/run/{id})
 //     title: string;         // shown in the launcher
 //     category: string;      // launcher grouping
@@ -37,7 +37,7 @@
 // or replace the module's own Renderer export in its file.
 // ===========================================================================
 
-import type { FunctionModule } from './types';
+import type { FigureModule } from './types';
 import { genomeOrganization } from './genomeOrganization';
 import { compareContrasts } from './compareContrasts';
 import { binToGenomes } from './binToGenomes';
@@ -47,9 +47,9 @@ import { phylogenyVsCore } from './phylogenyVsCore';
 import { coreGenome } from './coreGenome';
 import { rarefaction, binSizeHistogram, enrichedTerms, binStats } from './bonus';
 
-export type { FunctionModule, RendererProps, Renderer, RendererFamily } from './types';
+export type { FigureModule, RendererProps, Renderer, RendererFamily } from './types';
 
-export const functionModules: FunctionModule[] = [
+export const figureModules: FigureModule[] = [
   genomeOrganization,
   compareContrasts,
   binToGenomes,
@@ -63,6 +63,6 @@ export const functionModules: FunctionModule[] = [
   binStats,
 ];
 
-export function getFunctionModule(id: string): FunctionModule | undefined {
-  return functionModules.find((m) => m.id === id);
+export function getFigureModule(id: string): FigureModule | undefined {
+  return figureModules.find((m) => m.id === id);
 }

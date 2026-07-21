@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from scipy import stats
 
 from ..datasets import CONTRAST_PARAMETER
-from ..registry import Context, FunctionSpec
+from ..registry import Context, FigureSpec
 
 SIG_LEVELS = ["<", "=", ">"]
 
@@ -85,7 +85,7 @@ def run(params: Params, ctx: Context) -> dict:
     return {"matches": matches, "chi2": chi2_result, "categories": categories, "scatter": scatter}
 
 
-SPEC = FunctionSpec(
+SPEC = FigureSpec(
     id="compare_contrasts",
     title="Compare contrasts",
     category="contrast",

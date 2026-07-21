@@ -265,7 +265,7 @@ export function defaultsFor(def: ParamsDef): Record<string, unknown> {
 }
 
 // Drop empty optional values so the JSON sent to the backend / stored in a
-// bookmark omits fields the user left blank, then validate against the schema.
+// figure record omits fields the user left blank, then validate against the schema.
 export function cleanAndParse(def: ParamsDef, value: Record<string, unknown>): Record<string, unknown> {
   const cleaned: Record<string, unknown> = {};
   const byName = new Map(def.fields.map((f) => [f.name, f.meta]));

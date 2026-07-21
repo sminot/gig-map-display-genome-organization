@@ -3,12 +3,12 @@ import { RarefactionRenderer } from '../render/mosaic/RarefactionRenderer';
 import { BinSizeHistogramRenderer } from '../render/mosaic/BinSizeHistogramRenderer';
 import { BinStatsRenderer } from '../render/mosaic/BinStatsRenderer';
 import { EnrichedTermsRenderer } from '../render/mosaic/EnrichedTermsRenderer';
-import type { FunctionModule } from './types';
+import type { FigureModule } from './types';
 
 // Bonus functions (ARCHITECTURE.md §4). Same registry pattern; each is exposed
 // only because the backend implements it.
 
-export const rarefaction: FunctionModule = {
+export const rarefaction: FigureModule = {
   id: 'rarefaction',
   title: 'Rarefaction Curve',
   category: 'Summary',
@@ -18,7 +18,7 @@ export const rarefaction: FunctionModule = {
   Renderer: RarefactionRenderer,
 };
 
-export const binSizeHistogram: FunctionModule = {
+export const binSizeHistogram: FigureModule = {
   id: 'bin_size_histogram',
   title: 'Bin Size Histogram',
   category: 'Summary',
@@ -28,7 +28,7 @@ export const binSizeHistogram: FunctionModule = {
   Renderer: BinSizeHistogramRenderer,
 };
 
-export const enrichedTerms: FunctionModule = {
+export const enrichedTerms: FigureModule = {
   id: 'enriched_terms',
   title: 'Enriched Terms',
   category: 'Bins',
@@ -41,7 +41,7 @@ export const enrichedTerms: FunctionModule = {
   Renderer: EnrichedTermsRenderer,
 };
 
-export const binStats: FunctionModule = {
+export const binStats: FigureModule = {
   id: 'bin_stats',
   title: 'Bin Stats',
   category: 'Bins',

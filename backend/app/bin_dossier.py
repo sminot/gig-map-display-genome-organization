@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from . import links
-from .functions import bin_to_genomes, core_genome, enriched_terms, synteny_layout
+from .figures import bin_to_genomes, core_genome, enriched_terms, synteny_layout
 from .registry import Context
 
 PRESENCE_THRESHOLD = bin_to_genomes.PRESENCE_THRESHOLD
@@ -53,27 +53,33 @@ def _contrasts(pangenome_id: str, bin: str, ctx: Context) -> list[dict]:
 
 def _phylogeny(pangenome_id: str, bin: str, ctx: Context) -> dict | None:
     organism = ctx.datasets.get(pangenome_id).organism
-    matches = [p for p in ctx.datasets.list("phylogenies") if p.organism == organism]
+    matches = sorted(
+        (p for p in ctx.datasets.list("phylogenies") if p.organism == organism),
+        key=lambda p: p.id,
+    )
     if not matches:
         return None
-    phy = ctx.datasets.phylogeny(matches[0].id)
+    phylogeny_id = matches[0].id
+    phy = ctx.datasets.phylogeny(phylogeny_id)
     core = core_genome.core_bin(ctx.datasets.pangenome(pangenome_id))
     bin_tree = phy.tree(bin)
     core_tree = phy.tree(core)
     concordance = bin_tree._calc_concordance(core_tree)
     shared = set(bin_tree.leaves_list) & set(core_tree.leaves_list)
     return {
-        "phylogenyId": matches[0].id,
+        "phylogenyId": phylogeny_id,
         "concordance": float(concordance) if concordance is not None else None,
         "sharedLeaves": len(shared),
     }
 
 
 def _optional(fn, *args) -> object:
-    """Run an optional section; a failure there degrades to a null/empty value."""
+    """Run an optional section. ValueError means the data is legitimately absent
+    (an empty bin, no annotation terms, no gene coordinates) and degrades to null;
+    any other exception is a real bug and propagates."""
     try:
         return fn(*args)
-    except Exception:
+    except ValueError:
         return None
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from gig_map_io.helpers.phylogeny import Phylogeny
 from pydantic import BaseModel
 
-from ..registry import Context, FunctionSpec
+from ..registry import Context, FigureSpec
 from .core_genome import core_bin
 
 
@@ -50,7 +50,7 @@ def run(params: Params, ctx: Context) -> dict:
     }
 
 
-SPEC = FunctionSpec(
+SPEC = FigureSpec(
     id="phylogeny_vs_core",
     title="Phylogeny vs core",
     category="phylogeny",

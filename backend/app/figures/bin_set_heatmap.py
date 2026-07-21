@@ -4,7 +4,7 @@ import pandas as pd
 from gig_map_io.helpers.sort_dataframe import sort_dataframe
 from pydantic import BaseModel
 
-from ..registry import Context, FunctionSpec, TableResult
+from ..registry import Context, FigureSpec, TableResult
 
 PRESENCE_THRESHOLD = 0.5
 
@@ -42,7 +42,7 @@ def run(params: Params, ctx: Context) -> TableResult:
     )
 
 
-SPEC = FunctionSpec(
+SPEC = FigureSpec(
     id="bin_set_heatmap",
     title="Bin set heatmap",
     category="pangenome",

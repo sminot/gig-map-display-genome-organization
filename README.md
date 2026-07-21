@@ -4,7 +4,7 @@ A browser-based tool for visualizing gene presence/absence patterns across a col
 
 **Live app:** https://sminot.github.io/gig-map-display-genome-organization/
 
-> **New:** a full-stack **Pangenome Explorer** (Python backend + React/WebGL/Mosaic frontend,
+> **New:** a full-stack **gig-map figure generator** (Python backend + React/WebGL/Mosaic frontend,
 > `docker compose up`) extends this viewer with association overlays, contrast comparison,
 > bin/genome membership, synteny, phylogeny tanglegrams, and core-genome detection.
 > See [`docs/RUNNING.md`](docs/RUNNING.md) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).

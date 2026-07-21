@@ -1,20 +1,22 @@
-"""FastAPI app: dataset browsing, analysis functions, and session bookmarks."""
+"""FastAPI app: dataset browsing, analysis functions, output dir, and figure records."""
 
 from __future__ import annotations
 
+import json
 import os
 
 import pandas as pd
-from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import bin_dossier, links, session
+from . import bin_dossier, figures_store, links, output_dir
 from .datasets import DatasetRegistry
 from .registry import Context, TableResult, build_registry
 from .serialization import json_response, tabular_response
 
-app = FastAPI(title="Pangenome Explorer API")
+app = FastAPI(title="gig-map figure generator API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,7 +25,7 @@ app.add_middleware(
 )
 
 datasets = DatasetRegistry()
-functions = build_registry()
+figures = build_registry()
 ctx = Context(datasets=datasets)
 
 
@@ -100,13 +102,13 @@ def list_functions():
     return json_response(
         [
             {"id": s.id, "title": s.title, "category": s.category, "description": s.description}
-            for s in functions.values()
+            for s in figures.values()
         ]
     )
 
 
 def _invoke(function_id: str, params: dict):
-    spec = functions.get(function_id)
+    spec = figures.get(function_id)
     if spec is None:
         raise HTTPException(status_code=404, detail="unknown function")
     try:
@@ -141,23 +143,79 @@ def run_function_meta(function_id: str, params: dict = Body(default={})):
     return json_response(result.meta)
 
 
-@app.get("/api/bookmarks")
-def get_bookmarks():
-    return json_response([b.model_dump() for b in session.list_all()])
+@app.get("/api/output-dir")
+def get_output_dir():
+    path = output_dir.get_output_dir()
+    exists = path is not None and os.path.isdir(path)
+    return json_response({"path": path, "exists": exists})
 
 
-@app.post("/api/bookmarks")
-def post_bookmark(payload: session.BookmarkCreate):
-    return json_response(session.create(payload).model_dump())
+@app.put("/api/output-dir")
+def put_output_dir(payload: dict = Body(...)):
+    path = payload.get("path")
+    if not isinstance(path, str) or not path.strip():
+        raise HTTPException(status_code=422, detail="path must be a non-empty string")
+    resolved = output_dir.set_output_dir(path.strip())
+    return json_response({"path": resolved, "exists": os.path.isdir(resolved)})
 
 
-@app.delete("/api/bookmarks/{bookmark_id}")
-def delete_bookmark(bookmark_id: str):
+@app.get("/api/figures")
+def list_figures():
+    return json_response(figures_store.list_all())
+
+
+@app.post("/api/figures")
+async def post_figure(
+    figureType: str = Form(...),
+    title: str = Form(...),
+    params: str = Form(...),
+    image_png: UploadFile | None = File(default=None),
+    image_svg: UploadFile | None = File(default=None),
+):
     try:
-        session.delete(bookmark_id)
+        parsed_params = json.loads(params)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=422, detail="params must be valid JSON")
+    images: dict[str, bytes] = {}
+    if image_png is not None:
+        images["png"] = await image_png.read()
+    if image_svg is not None:
+        images["svg"] = await image_svg.read()
+    try:
+        record = figures_store.create(figureType, title, parsed_params, images)
+    except figures_store.NoOutputDir as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    response = json_response(record)
+    response.status_code = 201
+    return response
+
+
+@app.delete("/api/figures/{figure_id}")
+def delete_figure(figure_id: str):
+    try:
+        figures_store.delete(figure_id)
+    except figures_store.NoOutputDir as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     except KeyError:
-        raise HTTPException(status_code=404, detail="bookmark not found")
-    return json_response({"deleted": bookmark_id})
+        raise HTTPException(status_code=404, detail="figure not found")
+    return json_response({"deleted": figure_id})
+
+
+@app.get("/api/figures/{figure_id}/image")
+def get_figure_image(figure_id: str, format: str = Query(...)):
+    if format not in figures_store.MEDIA_TYPES:
+        raise HTTPException(status_code=422, detail="format must be png or svg")
+    try:
+        path = figures_store.image_path(figure_id, format)
+    except figures_store.NoOutputDir as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except KeyError:
+        raise HTTPException(status_code=404, detail="image not found")
+    return FileResponse(path, media_type=figures_store.MEDIA_TYPES[format])
 
 
 @app.get("/api/links")

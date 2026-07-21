@@ -1,4 +1,4 @@
-import type { RendererProps } from '../../functions/types';
+import type { RendererProps } from '../../figures/types';
 import { useRegisterExport } from '../../session/exports';
 import './mosaic.css';
 

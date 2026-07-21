@@ -4,7 +4,7 @@ import pandas as pd
 from gig_map_io import Pangenome
 from pydantic import BaseModel, Field
 
-from ..registry import Context, FunctionSpec
+from ..registry import Context, FigureSpec
 
 DEFAULT_PROP_THRESHOLD = 0.9
 
@@ -48,7 +48,7 @@ def run(params: Params, ctx: Context) -> dict:
     }
 
 
-SPEC = FunctionSpec(
+SPEC = FigureSpec(
     id="core_genome",
     title="Core genome",
     category="pangenome",

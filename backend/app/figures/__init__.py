@@ -12,7 +12,7 @@ from . import (
     synteny_layout,
 )
 
-ALL_FUNCTIONS = [
+ALL_FIGURES = [
     genome_organization.SPEC,
     compare_contrasts.SPEC,
     bin_to_genomes.SPEC,

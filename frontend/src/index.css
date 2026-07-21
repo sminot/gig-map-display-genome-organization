@@ -65,7 +65,7 @@ body {
 }
 
 .launcher-group ul,
-.bookmark-list {
+.figure-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -167,8 +167,8 @@ body {
   margin: 0.25rem 0 0;
 }
 
-.bookmark-save button,
-.export-bar button {
+.export-bar button,
+.output-folder-bar button {
   background: var(--accent);
   color: var(--accent-text);
   border: none;
@@ -178,7 +178,8 @@ body {
   font-size: 0.85rem;
 }
 
-.export-bar button:disabled {
+.export-bar button:disabled,
+.output-folder-bar button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
@@ -194,47 +195,59 @@ body {
   margin: 0 0 0.5rem;
 }
 
-.bookmark-save {
-  display: flex;
-  gap: 0.4rem;
-  margin-bottom: 0.5rem;
-}
-
-.bookmark-save input {
-  flex: 1;
-  padding: 0.35rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--bg);
-  color: var(--text);
-}
-
-.bookmark-list li {
+/* Figures panel */
+.figure-item {
   display: flex;
   align-items: stretch;
   gap: 0.25rem;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.35rem;
 }
 
-.bookmark-load {
+.figure-load {
   flex: 1;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  gap: 0.5rem;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 0.3rem 0.5rem;
+  padding: 0.3rem;
   cursor: pointer;
   color: var(--text);
+  text-align: left;
+  min-width: 0;
 }
 
-.bookmark-fn {
+.figure-thumb {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 3px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+}
+
+.figure-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.figure-title {
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.figure-type,
+.figure-time {
   font-size: 0.7rem;
   color: var(--muted);
 }
 
-.bookmark-del {
+.figure-del {
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--muted);
@@ -249,6 +262,55 @@ body {
   overflow: hidden;
 }
 
+/* Output folder bar */
+.output-folder-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  font-size: 0.85rem;
+}
+
+.output-folder-label {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.output-folder-path {
+  flex: 1;
+  font-family: monospace;
+  word-break: break-all;
+}
+
+.output-folder-path.unset {
+  color: var(--muted);
+  font-style: italic;
+  font-family: inherit;
+}
+
+.output-folder-edit {
+  display: flex;
+  flex: 1;
+  gap: 0.4rem;
+}
+
+.output-folder-edit input {
+  flex: 1;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.output-folder-bar .output-folder-cancel {
+  background: var(--bg);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
 .export-bar {
   display: flex;
   align-items: center;
@@ -260,6 +322,20 @@ body {
 .export-label {
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+.export-spacer {
+  flex: 1;
+}
+
+.save-title {
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.85rem;
+  max-width: 180px;
 }
 
 .render-area {

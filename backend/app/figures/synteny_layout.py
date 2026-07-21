@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 from pydantic import BaseModel
 
-from ..registry import Context, FunctionSpec
+from ..registry import Context, FigureSpec
 
 
 class Params(BaseModel):
@@ -38,7 +38,7 @@ def run(params: Params, ctx: Context) -> dict:
     }
 
 
-SPEC = FunctionSpec(
+SPEC = FigureSpec(
     id="synteny_layout",
     title="Synteny layout",
     category="pangenome",

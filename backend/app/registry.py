@@ -29,7 +29,7 @@ Handler = Callable[[BaseModel, Context], "pd.DataFrame | dict | TableResult"]
 
 
 @dataclass
-class FunctionSpec:
+class FigureSpec:
     id: str
     title: str
     category: str
@@ -38,7 +38,7 @@ class FunctionSpec:
     handler: Handler
 
 
-def build_registry() -> dict[str, FunctionSpec]:
-    from .functions import ALL_FUNCTIONS
+def build_registry() -> dict[str, FigureSpec]:
+    from .figures import ALL_FIGURES
 
-    return {spec.id: spec for spec in ALL_FUNCTIONS}
+    return {spec.id: spec for spec in ALL_FIGURES}

@@ -222,16 +222,26 @@ export function SchemaForm({ def, value, onChange, onSubmit }: SchemaFormProps) 
   const onSubmitRef = useRef(onSubmit);
   onSubmitRef.current = onSubmit;
 
+  // When the form is complete but the values fail validation, the user would
+  // otherwise be left with a blank view and no explanation. Surface the parse
+  // error; an incomplete form clears it (still filling in, not an error yet).
+  const [validationError, setValidationError] = useState<string | null>(null);
+
   useEffect(() => {
     const submit = onSubmitRef.current;
     if (!submit) return;
-    if (requiredFieldMissing(def, value)) return;
+    if (requiredFieldMissing(def, value)) {
+      setValidationError(null);
+      return;
+    }
     let params: Record<string, unknown>;
     try {
       params = cleanAndParse(def, value);
-    } catch {
+    } catch (e) {
+      setValidationError(e instanceof Error ? e.message : String(e));
       return;
     }
+    setValidationError(null);
     const timer = setTimeout(() => submit(params), DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [def, value]);
@@ -241,6 +251,11 @@ export function SchemaForm({ def, value, onChange, onSubmit }: SchemaFormProps) 
       {def.fields.map((entry) => (
         <FieldControl key={entry.name} entry={entry} form={value} onField={onField} />
       ))}
+      {validationError && (
+        <p className="sf-error" role="alert">
+          {validationError}
+        </p>
+      )}
     </form>
   );
 }

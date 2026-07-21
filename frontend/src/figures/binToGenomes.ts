@@ -1,13 +1,13 @@
 import { defineParams, datasetSelect, binSelect } from '../schema/fields';
 import { BinToGenomesRenderer } from '../render/mosaic/BinToGenomesRenderer';
-import type { FunctionModule } from './types';
+import type { FigureModule } from './types';
 
 const params = defineParams({
   pangenomeId: datasetSelect('Pangenome', 'pangenome'),
   bin: binSelect('Bin', { dependsOn: 'pangenomeId' }),
 });
 
-export const binToGenomes: FunctionModule = {
+export const binToGenomes: FigureModule = {
   id: 'bin_to_genomes',
   title: 'Bin to Genomes',
   category: 'Bins',

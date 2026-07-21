@@ -1,7 +1,7 @@
 import { defineParams, datasetSelect, genomeSelect, enumSelect, statColumn } from '../schema/fields';
 import { GenomeOrganizationRenderer } from '../render/webgl/GenomeOrganizationRenderer';
 import { buildRequestBody } from '../render/webgl/renderData';
-import type { FunctionModule } from './types';
+import type { FigureModule } from './types';
 
 // NOTE vs ARCHITECTURE.md §4.1: the contract's `overlay?:{contrastId,stat,channel}`
 // nested object is flattened here into three optional top-level fields so the single
@@ -16,7 +16,7 @@ const params = defineParams({
   overlayChannel: enumSelect('Overlay channel', ['arcColor', 'outerTrack'], { optional: true }),
 });
 
-export const genomeOrganization: FunctionModule = {
+export const genomeOrganization: FigureModule = {
   id: 'genome_organization',
   title: 'Genome Organization',
   category: 'Genome',

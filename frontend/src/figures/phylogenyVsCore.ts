@@ -1,6 +1,6 @@
 import { defineParams, datasetSelect, binSelect } from '../schema/fields';
 import { Tanglegram } from '../render/svg/Tanglegram';
-import type { FunctionModule } from './types';
+import type { FigureModule } from './types';
 
 const params = defineParams({
   pangenomeId: datasetSelect('Pangenome', 'pangenome'),
@@ -9,7 +9,7 @@ const params = defineParams({
   coreBin: binSelect('Core bin', { dependsOn: 'pangenomeId', optional: true }),
 });
 
-export const phylogenyVsCore: FunctionModule = {
+export const phylogenyVsCore: FigureModule = {
   id: 'phylogeny_vs_core',
   title: 'Phylogeny vs Core',
   category: 'Phylogeny',

@@ -6,7 +6,7 @@ import {
   number,
 } from '../schema/fields';
 import { CompareContrastsRenderer } from '../render/mosaic/CompareContrastsRenderer';
-import type { FunctionModule } from './types';
+import type { FigureModule } from './types';
 
 const params = defineParams({
   baseContrastIds: datasetMultiSelect('Base contrasts', 'contrast'),
@@ -17,7 +17,7 @@ const params = defineParams({
   estimateThresh: number('Estimate threshold', { step: 0.01, default: 0 }),
 });
 
-export const compareContrasts: FunctionModule = {
+export const compareContrasts: FigureModule = {
   id: 'compare_contrasts',
   title: 'Compare Contrasts',
   category: 'Contrasts',

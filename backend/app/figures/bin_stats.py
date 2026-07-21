@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from ..registry import Context, FunctionSpec
+from ..registry import Context, FigureSpec
 
 
 class Params(BaseModel):
@@ -41,7 +41,7 @@ def run(params: Params, ctx: Context) -> dict:
     }
 
 
-SPEC = FunctionSpec(
+SPEC = FigureSpec(
     id="bin_stats",
     title="Bin statistics",
     category="contrast",

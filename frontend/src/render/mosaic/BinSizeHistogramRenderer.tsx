@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { RendererProps } from '../../functions/types';
+import type { RendererProps } from '../../figures/types';
 import { useRegisterExport } from '../../session/exports';
 import { registerArrow, type VG } from './mosaicClient';
 import { MosaicChart } from './MosaicChart';

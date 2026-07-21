@@ -1,7 +1,6 @@
 """Resolve each contrast to its reference pangenome, with user overrides.
 
-Overrides are persisted as JSON files under SESSION_DIR/links, mirroring the
-bookmark persistence in session.py.
+Overrides are persisted as JSON files under SESSION_DIR/links.
 """
 
 from __future__ import annotations
@@ -49,18 +48,25 @@ def clear_override(contrast_id: str) -> None:
         path.unlink()
 
 
-def _candidates(contrast_id: str, ctx: Context) -> list[str]:
-    """Pangenomes matching a contrast: exact bin-set equality, else equal bin count."""
+def _candidates(contrast_id: str, ctx: Context) -> tuple[list[str], bool]:
+    """Pangenomes matching a contrast, and whether the match is exact.
+
+    Returns (candidates, exact). An exact match is bin-set equality and can be
+    auto-resolved. When no set matches, an equal bin COUNT is only a coincidence:
+    those ids are still returned (so a caller can offer them) but exact is False,
+    keeping the link ambiguous. No match at all returns ([], False).
+    """
     features = ctx.datasets.feature_name_set(contrast_id)
     pangenomes = ctx.datasets.list("pangenome")
     exact = [p.id for p in pangenomes if ctx.datasets.bin_name_set(p.id) == features]
     if exact:
-        return exact
-    return [p.id for p in pangenomes if len(ctx.datasets.bin_name_set(p.id)) == len(features)]
+        return exact, True
+    count = [p.id for p in pangenomes if len(ctx.datasets.bin_name_set(p.id)) == len(features)]
+    return count, False
 
 
 def resolve(contrast_id: str, ctx: Context) -> dict:
-    candidates = _candidates(contrast_id, ctx)
+    candidates, exact = _candidates(contrast_id, ctx)
     override = _override(contrast_id)
     if override is not None:
         return {
@@ -73,9 +79,9 @@ def resolve(contrast_id: str, ctx: Context) -> dict:
 
     reference: str | None = None
     ambiguous = True
-    if len(candidates) == 1:
+    if exact and len(candidates) == 1:
         reference, ambiguous = candidates[0], False
-    elif len(candidates) > 1:
+    elif exact and len(candidates) > 1:
         organism = ctx.datasets.get(contrast_id).organism
         same_organism = [c for c in candidates if ctx.datasets.get(c).organism == organism]
         if len(same_organism) == 1:

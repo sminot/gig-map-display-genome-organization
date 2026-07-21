@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { functionModules, getFunctionModule } from './functions';
-import type { FunctionModule } from './functions';
+import { figureModules, getFigureModule } from './figures';
+import type { FigureModule } from './figures';
 import { SchemaForm } from './forms/SchemaForm';
 import { defaultsFor } from './schema/fields';
 import * as api from './api/client';
-import type { Bookmark, RunResult } from './api/client';
-import { BookmarksPanel } from './session/BookmarksPanel';
+import type { FigureRecord, RunResult } from './api/client';
+import { FiguresPanel } from './session/FiguresPanel';
 import { DatasetLinksPanel } from './session/DatasetLinksPanel';
 import { BinInspectorDrawer } from './session/BinInspectorDrawer';
 import { ExportBar } from './session/ExportBar';
+import { OutputFolderBar } from './session/OutputFolderBar';
 import { ExportProvider } from './session/exports';
 
-function groupByCategory(modules: FunctionModule[]): [string, FunctionModule[]][] {
-  const groups = new Map<string, FunctionModule[]>();
+function groupByCategory(modules: FigureModule[]): [string, FigureModule[]][] {
+  const groups = new Map<string, FigureModule[]>();
   for (const m of modules) {
     const list = groups.get(m.category) ?? [];
     list.push(m);
@@ -22,9 +23,9 @@ function groupByCategory(modules: FunctionModule[]): [string, FunctionModule[]][
 }
 
 export default function App() {
-  const categories = useMemo(() => groupByCategory(functionModules), []);
-  const [selectedId, setSelectedId] = useState(functionModules[0].id);
-  const selected = getFunctionModule(selectedId)!;
+  const categories = useMemo(() => groupByCategory(figureModules), []);
+  const [selectedId, setSelectedId] = useState(figureModules[0].id);
+  const selected = getFigureModule(selectedId)!;
 
   const [paramValues, setParamValues] = useState<Record<string, unknown>>(() =>
     defaultsFor(selected.params),
@@ -34,7 +35,10 @@ export default function App() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedBin, setSelectedBin] = useState<string | null>(null);
+  const [figuresRefreshKey, setFiguresRefreshKey] = useState(0);
   const runAbort = useRef<AbortController | null>(null);
+
+  const refreshFigures = () => setFiguresRefreshKey((k) => k + 1);
 
   const pangenomeId = typeof paramValues.pangenomeId === 'string' ? paramValues.pangenomeId : null;
 
@@ -46,7 +50,7 @@ export default function App() {
   }, [pangenomeId]);
 
   const selectFunction = (id: string) => {
-    const mod = getFunctionModule(id)!;
+    const mod = getFigureModule(id)!;
     // Carry shared context (pangenome, contrast, bin, …) across the view switch so
     // the explorer keeps your place, re-runs immediately, and the brushed bin stays
     // highlighted. Only same-name, same-kind fields with a non-empty value carry.
@@ -88,14 +92,16 @@ export default function App() {
     }
   };
 
-  const loadBookmark = (b: Bookmark) => {
-    const mod = getFunctionModule(b.functionId);
+  // The ONE generic load path: a figure is fully described by { figureType,
+  // params }. No per-figure-type handling — every module round-trips the same way.
+  const loadFigure = (rec: FigureRecord) => {
+    const mod = getFigureModule(rec.figureType);
     if (!mod) {
-      setError(`Unknown function in bookmark: ${b.functionId}`);
+      setError(`Unknown figure type: ${rec.figureType}`);
       return;
     }
     setSelectedId(mod.id);
-    setParamValues({ ...defaultsFor(mod.params), ...b.params });
+    setParamValues({ ...defaultsFor(mod.params), ...rec.params });
     setResult(null);
     setLastRunParams(null);
     setError(null);
@@ -106,7 +112,7 @@ export default function App() {
   return (
     <div className="app">
       <aside className="sidebar">
-        <h1 className="app-title">Pangenome Explorer</h1>
+        <h1 className="app-title">gig-map figure generator</h1>
         <nav className="launcher">
           {categories.map(([category, mods]) => (
             <div key={category} className="launcher-group">
@@ -140,18 +146,20 @@ export default function App() {
           />
         </section>
 
-        <BookmarksPanel
-          currentFunctionId={selected.id}
-          currentParams={paramValues}
-          onLoad={loadBookmark}
-        />
+        <FiguresPanel refreshKey={figuresRefreshKey} onLoad={loadFigure} />
 
         <DatasetLinksPanel />
       </aside>
 
       <main className="viewport">
+        <OutputFolderBar onChange={refreshFigures} />
         <ExportProvider>
-          <ExportBar functionId={selected.id} params={lastRunParams} disabled={!result} />
+          <ExportBar
+            functionId={selected.id}
+            params={lastRunParams}
+            disabled={!result}
+            onSaved={refreshFigures}
+          />
           <div className="render-area">
             {running && <p className="status">Running…</p>}
             {error && <p className="sf-error" role="alert">{error}</p>}

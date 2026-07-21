@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { CSSProperties } from 'react';
 import { tableFromJSON } from 'apache-arrow';
-import type { RendererProps } from '../../functions/types';
+import type { RendererProps } from '../../figures/types';
 import { useRegisterExport } from '../../session/exports';
 import { registerArrow, type VG } from './mosaicClient';
 import { MosaicChart } from './MosaicChart';

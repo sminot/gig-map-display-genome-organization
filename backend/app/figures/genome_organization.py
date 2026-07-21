@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from pydantic import BaseModel
 
-from ..registry import Context, FunctionSpec, TableResult
+from ..registry import Context, FigureSpec, TableResult
 
 ALIGNMENT_COLUMNS = ["gene", "contig", "genome", "qstart", "qend", "qlen", "pident", "coverage", "bin"]
 
@@ -71,7 +71,7 @@ def run(params: Params, ctx: Context) -> TableResult:
     return TableResult(df=df, meta=meta)
 
 
-SPEC = FunctionSpec(
+SPEC = FigureSpec(
     id="genome_organization",
     title="Genome organization",
     category="pangenome",

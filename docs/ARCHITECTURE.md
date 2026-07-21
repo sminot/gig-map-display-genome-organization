@@ -1,4 +1,10 @@
-# Pangenome Explorer — Architecture & Contract
+# gig-map figure generator — Architecture & Contract
+
+> Rebrand note: the product is now the **gig-map figure generator**; the internal
+> analysis-function concept is called a **figure** throughout the code (`figures/`
+> packages, `FigureModule`/`FigureSpec`). The HTTP contract is unchanged — route paths
+> (`/api/functions`, `/api/run/{functionId}`, …) and the `functionId`/`function_id`
+> id field keep their names.
 
 This is the single source of truth shared by all implementation agents. Backend and
 frontend are built in parallel against the API contract defined here. Field names in
@@ -20,9 +26,9 @@ backend/            FastAPI + gig_map_io
   app/
     main.py            FastAPI app; mounts /api; serves frontend dist in prod
     datasets.py        scan DATASETS_DIR; infer type per folder FROM CONTENTS
-    session.py         bookmarks CRUD in SESSION_DIR
+    session.py         SESSION_DIR helper; output_dir.py + figures_store.py (saved figures)
     serialization.py   pandas.DataFrame -> Arrow IPC stream; JSON helpers
-    functions/         one module per analysis function (see §4)
+    figures/           one module per figure (see §4)
     registry.py        maps functionId -> handler + pydantic params model
   tests/               pytest against ./datasets fixture
   pyproject.toml
@@ -32,12 +38,12 @@ frontend/           Vite + React + TypeScript
     api/client.ts      fetch wrappers; Arrow decode (apache-arrow tableFromIPC)
     schema/            field-type system (zod) + special input types (§3)
     forms/SchemaForm.tsx  the ONE common form engine (§3)
-    functions/         one module per analysis function: {id,title,category,schema,Renderer}
-    functions/index.ts registry: array of all function modules
+    figures/           one module per figure: {id,title,category,schema,Renderer}
+    figures/index.ts   registry: array of all figure modules
     render/webgl/      ported genome-organization renderer (§4.1)
     render/mosaic/     DuckDB-WASM + Mosaic charts (§4: heatmap, scatter, box)
     render/svg/        React+SVG trees, tanglegram, synteny (§4)
-    session/           bookmarks panel + client
+    session/           output-folder bar, figures panel, bin inspector + client
     App.tsx, main.tsx
   package.json, vite.config.ts, tsconfig.json, nginx.conf
   Dockerfile
@@ -54,9 +60,9 @@ docs/ARCHITECTURE.md  (this file)
   `/Users/sminot/Documents/GitHub/fredricks-gvhd-microbiome-pangenome-association-1/datasets`.
 
 ## 3. Schema-driven UI (HARD RULE)
-Every analysis function declares its inputs as a **zod schema** built from a small set of
+Every figure declares its inputs as a **zod schema** built from a small set of
 branded field helpers in `schema/fields.ts`. `SchemaForm` renders ANY such schema — there are
-NO per-function bespoke forms. Field helpers (each carries UI metadata via `.describe()`/brand):
+NO per-figure bespoke forms. Field helpers (each carries UI metadata via `.describe()`/brand):
 - `text(label)`, `number(label,{min,max,step})`, `bool(label)`, `enumSelect(label, options)`
 - `binSelect(label)` — depends on a chosen pangenome; options fetched from `/api/datasets/{id}/bins`
 - `binMultiSelect(label)` — set of bins
@@ -66,7 +72,7 @@ NO per-function bespoke forms. Field helpers (each carries UI metadata via `.des
 - `statColumn(label)` — association stat column; options e.g. Estimate | signed_log10_qvalue | pvalue | qvalue | neg_log10_qvalue
 Cross-field dependency: fields may declare `dependsOn: <otherFieldName>` so e.g. `binSelect`
 knows which pangenome to query. `SchemaForm` resolves dependencies and lazy-loads options.
-Params serialize to plain JSON via `schema.parse`; bookmarks store exactly this JSON.
+Params serialize to plain JSON via `schema.parse`; saved figure records store exactly this JSON.
 
 ## 4. Backend API contract
 All under `/api`. Tabular payloads use Arrow IPC stream
@@ -83,7 +89,14 @@ All under `/api`. Tabular payloads use Arrow IPC stream
 - `GET /api/datasets/{id}/genomes` → `[{genome, ...metadata}]` (pangenome only).
 - `GET /api/functions` → `[{id, title, category, description}]` for the launcher.
 - `POST /api/run/{functionId}` body = params JSON → Arrow or JSON per function.
-- `GET/POST/DELETE /api/bookmarks` → session bookmarks (§5).
+- `GET /api/output-dir` → `{path, exists}`; `PUT /api/output-dir` `{path}` sets the current output
+  folder (any host path, `~`-expanded, `mkdir -p`); persisted in `SESSION_DIR/output_dir.json`.
+- `GET /api/figures` → the `FigureRecord[]` saved in the current output folder (newest first; `[]` if
+  none set). `POST /api/figures` (multipart: `figureType`, `title`, `params` JSON, optional `image_png`/`image_svg`)
+  writes `<id>.json` + image files into that folder. `DELETE /api/figures/{id}` removes them.
+  `GET /api/figures/{id}/image?format=png|svg` serves a stored image. A `FigureRecord` =
+  `{id, figureType, title, params, createdAt, images:[{format, filename}]}` — the ONE universal
+  serialization for every figure type (see CLAUDE.md; replaces the old bookmarks).
 - `GET /api/links` → `[{contrastId, referencePangenomeId, candidates:[...], ambiguous, source:"inferred"|"user"}]`.
   Each contrast is linked to its reference pangenome by matching the contrast's association `feature`
   name-set to a pangenome's bin-name set (exact set equality; bin-COUNT equality as fallback), with
@@ -103,7 +116,7 @@ All under `/api`. Tabular payloads use Arrow IPC stream
   selection and the shared params (pangenome, …) carry across view switches so brushing is visible across views;
   the selection resets only when the pangenome changes.
 
-### Functions (functionId → params → output)
+### Figures (functionId → params → output)
 1. **`genome_organization`** — params `{pangenomeId, referenceGenome?, colorBy?, overlay?:{contrastId, stat, channel:"arcColor"|"outerTrack"}}`.
    Output: Arrow table of alignment rows `{gene, contig, genome, qstart, qend, qlen, pident, coverage, bin}` + a JSON sidecar
    at `/api/run/genome_organization/meta` (or embed meta in an `X-Meta` header/second call) with
@@ -127,25 +140,29 @@ All under `/api`. Tabular payloads use Arrow IPC stream
 7. **`core_genome`** — params `{pangenomeId, propThreshold:0.9}` → JSON
    `{coreBin, nGenomes, nGenes, ranking:[{bin,n_genomes,n_genes}]}`. Must return `Bin 4` for the fixture.
 
-Bonus functions (expose if cheap): `rarefaction`, `bin_size_histogram`, `enriched_terms` (Fisher),
+Bonus figures (expose if cheap): `rarefaction`, `bin_size_histogram`, `enriched_terms` (Fisher),
 `bin_stats` (AUC/odds-ratio/logistic). Same registry pattern.
 
-## 5. Session & export
-- Bookmark = `SESSION_DIR/bookmarks/{uuid}.json` = `{id, functionId, title, params, createdAt}`.
-- `POST /api/bookmarks` writes one; `GET` lists; `DELETE /api/bookmarks/{id}` removes.
-- Frontend: a Bookmarks panel; "Save view" captures current functionId+params; clicking a bookmark
-  loads its params into SchemaForm and runs. Export current view: PNG (canvas/svg → blob), SVG (svg renderers),
-  and data download (CSV/JSON) via `?format=`.
+## 5. Figures, output folder & export
+- The user sets a current **output folder** (`/api/output-dir`). Saving a figure (ExportBar "Save figure")
+  writes a `FigureRecord` (`<id>.json`) plus the rendered image(s) into that folder via `POST /api/figures`.
+- A `FigureRecord` = `{id, figureType, title, params, createdAt, images:[{format, filename}]}` — the ONE
+  universal serialization for every figure type. Load = pick `figureType` + set `params` (auto-runs); there
+  is exactly one save path and one load path, no per-figure-type code (HARD RULE — see `CLAUDE.md`,
+  enforced by `frontend/src/session/figures.roundtrip.test.ts`). This replaces the former bookmarks.
+- Frontend: an `OutputFolderBar` (shows/changes the folder) + a `FiguresPanel` listing saved figures with
+  thumbnails/timestamps; clicking one loads it. Export current view: PNG/SVG (renderer handler, else a generic
+  capture of the render area — `session/imageCapture.ts`) and CSV/JSON (renderer handler or `?format=`).
 
 ## 6. Rendering assignments
-- WebGL2 (`render/webgl/`): function 1 (ported from legacy `webgl-renderer.js` + `genome-viz.js` +
+- WebGL2 (`render/webgl/`): figure 1 (ported from legacy `webgl-renderer.js` + `genome-viz.js` +
   `app.js` buildRenderData + `zoom-*.js`). Keep scroll-zoom wedge + hover tooltips. Add optional overlay.
-- Mosaic + DuckDB-WASM (`render/mosaic/`): functions 2,3,4 + volcano/box/scatter + bonus tables.
+- Mosaic + DuckDB-WASM (`render/mosaic/`): figures 2,3,4 + volcano/box/scatter + bonus tables.
   Fetch Arrow from backend, register into DuckDB-WASM, drive `@uwdata/mosaic` vgplot marks.
-- React+SVG (`render/svg/`): functions 5,6,7 (synteny arrows, tanglegram, core-genome summary).
+- React+SVG (`render/svg/`): figures 5,6,7 (synteny arrows, tanglegram, core-genome summary).
 
 ## 7. Non-negotiables
 - Type inference reads FILE CONTENTS, never folder-name prefixes alone.
-- One `SchemaForm`; every function routed through it.
+- One `SchemaForm`; every figure routed through it.
 - Reuse gig_map_io algorithms — do not re-derive synteny/phylogeny/FDR.
 - Tests must EXERCISE behavior end-to-end; core_genome test asserts `Bin 4`.

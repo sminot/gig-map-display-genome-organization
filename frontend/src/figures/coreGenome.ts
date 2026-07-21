@@ -1,6 +1,6 @@
 import { defineParams, datasetSelect, number } from '../schema/fields';
 import { CoreGenome } from '../render/svg/CoreGenome';
-import type { FunctionModule } from './types';
+import type { FigureModule } from './types';
 
 const params = defineParams({
   pangenomeId: datasetSelect('Pangenome', 'pangenome'),
@@ -12,7 +12,7 @@ const params = defineParams({
   }),
 });
 
-export const coreGenome: FunctionModule = {
+export const coreGenome: FigureModule = {
   id: 'core_genome',
   title: 'Core Genome',
   category: 'Core Genome',

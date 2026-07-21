@@ -1,13 +1,13 @@
 import { defineParams, datasetSelect, binMultiSelect } from '../schema/fields';
 import { BinSetHeatmapRenderer } from '../render/mosaic/BinSetHeatmapRenderer';
-import type { FunctionModule } from './types';
+import type { FigureModule } from './types';
 
 const params = defineParams({
   pangenomeId: datasetSelect('Pangenome', 'pangenome'),
   bins: binMultiSelect('Bins', { dependsOn: 'pangenomeId' }),
 });
 
-export const binSetHeatmap: FunctionModule = {
+export const binSetHeatmap: FigureModule = {
   id: 'bin_set_heatmap',
   title: 'Bin Set Heatmap',
   category: 'Bins',
