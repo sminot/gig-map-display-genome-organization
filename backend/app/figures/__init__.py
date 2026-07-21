@@ -1,4 +1,5 @@
 from . import (
+    bin_classifier,
     bin_set_heatmap,
     bin_size_histogram,
     bin_stats,
@@ -24,5 +25,6 @@ ALL_FIGURES = [
     rarefaction.SPEC,
     bin_size_histogram.SPEC,
     bin_stats.SPEC,
+    bin_classifier.SPEC,
     enriched_terms.SPEC,
 ]
