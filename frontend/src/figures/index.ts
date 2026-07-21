@@ -45,6 +45,7 @@ import { binToGenomes } from './binToGenomes';
 import { binSetHeatmap } from './binSetHeatmap';
 import { syntenyLayout } from './syntenyLayout';
 import { phylogenyVsCore } from './phylogenyVsCore';
+import { phylogenyViewer } from './phylogenyViewer';
 import { coreGenome } from './coreGenome';
 import { rarefaction, binSizeHistogram, enrichedTerms, binStats } from './bonus';
 
@@ -58,6 +59,7 @@ export const figureModules: FigureModule[] = [
   binSetHeatmap,
   syntenyLayout,
   phylogenyVsCore,
+  phylogenyViewer,
   coreGenome,
   rarefaction,
   binSizeHistogram,

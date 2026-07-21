@@ -8,6 +8,7 @@ from . import (
     core_genome,
     enriched_terms,
     genome_organization,
+    phylogeny_viewer,
     phylogeny_vs_core,
     rarefaction,
     synteny_layout,
@@ -20,6 +21,7 @@ ALL_FIGURES = [
     bin_set_heatmap.SPEC,
     synteny_layout.SPEC,
     phylogeny_vs_core.SPEC,
+    phylogeny_viewer.SPEC,
     core_genome.SPEC,
     # bonus
     rarefaction.SPEC,

@@ -47,13 +47,51 @@ body {
 .sidebar {
   border-right: 1px solid var(--border);
   background: var(--panel);
-  overflow-y: auto;
-  padding: 1rem;
+  overflow: hidden;
+  padding: 1rem 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-title {
   font-size: 1.1rem;
-  margin: 0 0 1rem;
+  margin: 0 1rem 1rem;
+}
+
+/* Two-level sidebar: two full-width panels laid side by side; the slider shifts
+   left to reveal the settings panel and back again. */
+.sidebar-slider {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  width: 200%;
+  transition: transform 0.28s ease;
+}
+
+.sidebar-slider.level-settings {
+  transform: translateX(-50%);
+}
+
+.sidebar-panel {
+  width: 50%;
+  flex: 0 0 50%;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 1rem;
+}
+
+.back-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.2rem 0;
+  margin-bottom: 0.25rem;
+}
+
+.back-btn:hover {
+  text-decoration: underline;
 }
 
 .launcher-group h3 {
@@ -93,9 +131,7 @@ body {
 }
 
 .params {
-  margin-top: 1.25rem;
-  border-top: 1px solid var(--border);
-  padding-top: 1rem;
+  margin-top: 0.5rem;
 }
 
 .params h2 {

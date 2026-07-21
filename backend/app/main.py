@@ -64,6 +64,16 @@ def get_dataset(dataset_id: str):
 @app.get("/api/datasets/{dataset_id}/bins")
 def get_bins(dataset_id: str):
     try:
+        info = datasets.get(dataset_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    if info.type == "phylogenies":
+        rows = [
+            {"bin": b, "n_genes": 0, "n_genomes": 0}
+            for b in datasets.phylogeny_bin_names(dataset_id)
+        ]
+        return json_response(rows)
+    try:
         pg = datasets.pangenome(dataset_id)
     except (KeyError, ValueError) as exc:
         raise HTTPException(status_code=404, detail=str(exc))

@@ -13,8 +13,15 @@ from gig_map_io import ContrastMetagenomes, Pangenome, PangenomePhylogeny
 
 DEFAULT_DATASETS_DIR = "./datasets"
 CONTRAST_PARAMETER = "disease"
+BESTTREE_SUFFIX = ".msa.raxml.bestTree"
 
 _HASH_SUFFIX = re.compile(r"\s*\([0-9a-fA-F]{5,}\)\s*$")
+_TRAILING_NUMBER = re.compile(r"(\d+)$")
+
+
+def _bin_sort_key(bin_name: str) -> tuple[int, str]:
+    match = _TRAILING_NUMBER.search(bin_name)
+    return (int(match.group(1)) if match else 0, bin_name)
 
 
 def datasets_dir() -> Path:
@@ -116,6 +123,10 @@ class DatasetRegistry:
     def phylogeny(self, dataset_id: str) -> PangenomePhylogeny:
         return _load_phylogeny(str(self.require(dataset_id, "phylogenies").data_dir))
 
+    def phylogeny_bin_names(self, dataset_id: str) -> list[str]:
+        data_dir = self.require(dataset_id, "phylogenies").data_dir
+        return list(_phylogeny_bin_names(str(data_dir)))
+
     def bin_name_set(self, dataset_id: str) -> frozenset[str]:
         return _bin_name_set(str(self.require(dataset_id, "pangenome").data_dir))
 
@@ -137,6 +148,13 @@ def _load_contrast(data_dir: str) -> ContrastMetagenomes:
 @lru_cache(maxsize=None)
 def _load_phylogeny(data_dir: str) -> PangenomePhylogeny:
     return PangenomePhylogeny(data_dir)
+
+
+@lru_cache(maxsize=None)
+def _phylogeny_bin_names(data_dir: str) -> tuple[str, ...]:
+    raxml = Path(data_dir) / "raxml"
+    bins = [p.name[: -len(BESTTREE_SUFFIX)] for p in raxml.glob(f"*{BESTTREE_SUFFIX}")]
+    return tuple(sorted(bins, key=_bin_sort_key))
 
 
 @lru_cache(maxsize=None)

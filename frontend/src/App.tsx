@@ -36,6 +36,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [selectedBin, setSelectedBin] = useState<string | null>(null);
   const [figuresRefreshKey, setFiguresRefreshKey] = useState(0);
+  // Two-level sidebar: 'types' (choose a plot type) slides to 'settings' (its params).
+  const [navLevel, setNavLevel] = useState<'types' | 'settings'>('types');
   const runAbort = useRef<AbortController | null>(null);
 
   const refreshFigures = () => setFiguresRefreshKey((k) => k + 1);
@@ -66,6 +68,7 @@ export default function App() {
     setResult(null);
     setLastRunParams(null);
     setError(null);
+    setNavLevel('settings');
   };
 
   const run = async (params: Record<string, unknown>) => {
@@ -105,6 +108,7 @@ export default function App() {
     setResult(null);
     setLastRunParams(null);
     setError(null);
+    setNavLevel('settings');
   };
 
   const Renderer = selected.Renderer;
@@ -113,42 +117,53 @@ export default function App() {
     <div className="app">
       <aside className="sidebar">
         <h1 className="app-title">gig-map figure generator</h1>
-        <nav className="launcher">
-          {categories.map(([category, mods]) => (
-            <div key={category} className="launcher-group">
-              <h3>{category}</h3>
-              <ul>
-                {mods.map((m) => (
-                  <li key={m.id}>
-                    <button
-                      type="button"
-                      className={m.id === selectedId ? 'launch active' : 'launch'}
-                      onClick={() => selectFunction(m.id)}
-                    >
-                      {m.title}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </nav>
+        <div className={`sidebar-slider level-${navLevel}`}>
+          {/* Level 1 — plot type */}
+          <div className="sidebar-panel" aria-hidden={navLevel !== 'types'}>
+            <nav className="launcher">
+              {categories.map(([category, mods]) => (
+                <div key={category} className="launcher-group">
+                  <h3>{category}</h3>
+                  <ul>
+                    {mods.map((m) => (
+                      <li key={m.id}>
+                        <button
+                          type="button"
+                          className={m.id === selectedId ? 'launch active' : 'launch'}
+                          onClick={() => selectFunction(m.id)}
+                        >
+                          {m.title}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </nav>
 
-        <section className="params">
-          <h2>{selected.title}</h2>
-          <p className="fn-desc">{selected.description}</p>
-          <SchemaForm
-            key={selected.id}
-            def={selected.params}
-            value={paramValues}
-            onChange={setParamValues}
-            onSubmit={run}
-          />
-        </section>
+            <FiguresPanel refreshKey={figuresRefreshKey} onLoad={loadFigure} />
 
-        <FiguresPanel refreshKey={figuresRefreshKey} onLoad={loadFigure} />
+            <DatasetLinksPanel />
+          </div>
 
-        <DatasetLinksPanel />
+          {/* Level 2 — plot settings */}
+          <div className="sidebar-panel" aria-hidden={navLevel !== 'settings'}>
+            <button type="button" className="back-btn" onClick={() => setNavLevel('types')}>
+              ← Plot types
+            </button>
+            <section className="params">
+              <h2>{selected.title}</h2>
+              <p className="fn-desc">{selected.description}</p>
+              <SchemaForm
+                key={selected.id}
+                def={selected.params}
+                value={paramValues}
+                onChange={setParamValues}
+                onSubmit={run}
+              />
+            </section>
+          </div>
+        </div>
       </aside>
 
       <main className="viewport">
