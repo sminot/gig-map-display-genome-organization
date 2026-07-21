@@ -5,6 +5,7 @@ from . import (
     bin_to_genomes,
     compare_contrasts,
     core_genome,
+    enriched_terms,
     genome_organization,
     phylogeny_vs_core,
     rarefaction,
@@ -23,4 +24,5 @@ ALL_FUNCTIONS = [
     rarefaction.SPEC,
     bin_size_histogram.SPEC,
     bin_stats.SPEC,
+    enriched_terms.SPEC,
 ]

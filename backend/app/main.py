@@ -9,7 +9,7 @@ from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import session
+from . import bin_dossier, links, session
 from .datasets import DatasetRegistry
 from .registry import Context, TableResult, build_registry
 from .serialization import json_response, tabular_response
@@ -158,6 +158,45 @@ def delete_bookmark(bookmark_id: str):
     except KeyError:
         raise HTTPException(status_code=404, detail="bookmark not found")
     return json_response({"deleted": bookmark_id})
+
+
+@app.get("/api/links")
+def get_links():
+    return json_response(links.resolve_all(ctx))
+
+
+@app.put("/api/links/{contrast_id}")
+def put_link(contrast_id: str, payload: links.LinkUpdate):
+    try:
+        datasets.require(contrast_id, "contrast")
+        datasets.require(payload.pangenomeId, "pangenome")
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    links.set_override(contrast_id, payload.pangenomeId)
+    return json_response(links.resolve(contrast_id, ctx))
+
+
+@app.delete("/api/links/{contrast_id}")
+def delete_link(contrast_id: str):
+    try:
+        datasets.require(contrast_id, "contrast")
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    links.clear_override(contrast_id)
+    return json_response(links.resolve(contrast_id, ctx))
+
+
+@app.get("/api/pangenome/{pangenome_id}/bin/{bin}")
+def get_bin_dossier(pangenome_id: str, bin: str):
+    try:
+        payload = bin_dossier.build(pangenome_id, bin, ctx)
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return json_response(payload)
 
 
 _frontend_dist = os.environ.get("FRONTEND_DIST")

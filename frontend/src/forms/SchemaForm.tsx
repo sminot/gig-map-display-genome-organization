@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FieldEntry, FieldMeta, Option, ParamsDef } from '../schema/fields';
 import { cleanAndParse } from '../schema/fields';
 import * as api from '../api/client';
@@ -194,9 +193,20 @@ function FieldControl({
   );
 }
 
-export function SchemaForm({ def, value, onChange, onSubmit }: SchemaFormProps) {
-  const [error, setError] = useState<string | null>(null);
+const DEBOUNCE_MS = 300;
 
+// A required field left empty ('' / undefined / empty array) still passes zod
+// (z.string() accepts ''), so cleanAndParse alone isn't enough to know the form
+// is ready — auto-run must also confirm every non-optional field is filled.
+function requiredFieldMissing(def: ParamsDef, value: Record<string, unknown>): boolean {
+  return def.fields.some(({ name, meta }) => {
+    if (meta.optional) return false;
+    const v = value[name];
+    return v === '' || v === undefined || v === null || (Array.isArray(v) && v.length === 0);
+  });
+}
+
+export function SchemaForm({ def, value, onChange, onSubmit }: SchemaFormProps) {
   const onField = (name: string, v: unknown) => {
     const next = { ...value, [name]: v };
     // Clear dependent fields when their dependency changes so stale ids aren't submitted.
@@ -206,26 +216,31 @@ export function SchemaForm({ def, value, onChange, onSubmit }: SchemaFormProps) 
     onChange(next);
   };
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    setError(null);
+  // Auto-run: whenever the value (or function) changes and the params validate,
+  // fire onSubmit debounced. Incomplete/invalid params just don't run. The pending
+  // call is cancelled on the next change, when the function changes, and on unmount.
+  const onSubmitRef = useRef(onSubmit);
+  onSubmitRef.current = onSubmit;
+
+  useEffect(() => {
+    const submit = onSubmitRef.current;
+    if (!submit) return;
+    if (requiredFieldMissing(def, value)) return;
+    let params: Record<string, unknown>;
     try {
-      const params = cleanAndParse(def, value);
-      onSubmit?.(params);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      params = cleanAndParse(def, value);
+    } catch {
+      return;
     }
-  };
+    const timer = setTimeout(() => submit(params), DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [def, value]);
 
   return (
-    <form className="schema-form" onSubmit={handleSubmit}>
+    <form className="schema-form" onSubmit={(e) => e.preventDefault()}>
       {def.fields.map((entry) => (
         <FieldControl key={entry.name} entry={entry} form={value} onField={onField} />
       ))}
-      {error && <p className="sf-error" role="alert">{error}</p>}
-      <button type="submit" className="sf-run">
-        Run
-      </button>
     </form>
   );
 }

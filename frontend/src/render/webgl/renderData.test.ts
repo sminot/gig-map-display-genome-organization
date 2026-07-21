@@ -13,6 +13,7 @@ import {
   computeWedgeLayout,
   divergingColor,
   ordinalColor,
+  robustAbsMax,
   sequentialColor,
   wedgeGenomeRingBounds,
   wedgeOuterTrackBounds,
@@ -98,11 +99,26 @@ describe('buildRenderData', () => {
     expect(rd.colorBy).toBe('genome');
   });
 
-  it('captures overlay-by-bin and the diverging absMax', () => {
+  it('captures overlay-by-bin and a 95th-percentile diverging absMax', () => {
     const rd = buildRenderData(rows, { ...meta, overlayByBin: { 'Bin 1': -3, 'Bin 2': 1.5 }, overlayChannel: 'arcColor' }, { referenceGenome: 'gA' });
     expect(rd.overlayChannel).toBe('arcColor');
-    expect(rd.overlayAbsMax).toBe(3);
+    // p95 of |{-3, 1.5}| via linear interpolation: 1.5 + 0.95*(3-1.5) = 2.925.
+    expect(rd.overlayAbsMax).toBeCloseTo(2.925);
     expect(rd.overlayByBin!.get('Bin 1')).toBe(-3);
+  });
+});
+
+describe('robustAbsMax', () => {
+  it('ignores a lone outlier so the bulk keeps its color range', () => {
+    // 20 bins at |1| plus one at |100|: the p95 order statistic stays at 1.
+    const values = [...Array(20).fill(1), 100];
+    expect(robustAbsMax(values)).toBe(1);
+  });
+
+  it('handles empty, single, and sign-mixed inputs', () => {
+    expect(robustAbsMax([])).toBe(0);
+    expect(robustAbsMax([-4])).toBe(4);
+    expect(robustAbsMax([2, -2])).toBe(2);
   });
 });
 

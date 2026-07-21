@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { tableFromJSON } from 'apache-arrow';
 import type { RendererProps } from '../../functions/types';
 import { useRegisterExport } from '../../session/exports';
 import { registerArrow, type VG } from './mosaicClient';
@@ -6,6 +8,8 @@ import { MosaicChart } from './MosaicChart';
 import { arrowToRecords, orderDomain, recordsToCsv } from './dataShaping';
 
 const TABLE = 'bin_set_heatmap';
+const HIGHLIGHT = 'bin_set_heatmap_sel';
+const SELECT_STROKE = '#f59e0b';
 
 interface ClusterOrder {
   binOrder: string[];
@@ -24,7 +28,7 @@ async function fetchClusterOrder(params: Record<string, unknown>): Promise<Clust
   return (await res.json()) as ClusterOrder;
 }
 
-export function BinSetHeatmapRenderer({ params, result }: RendererProps) {
+export function BinSetHeatmapRenderer({ params, result, selectedBin, onSelectBin }: RendererProps) {
   const table = result.kind === 'arrow' ? result.table : null;
   const records = useMemo(() => (table ? arrowToRecords(table) : []), [table]);
   const [order, setOrder] = useState<ClusterOrder | null>(null);
@@ -54,14 +58,41 @@ export function BinSetHeatmapRenderer({ params, result }: RendererProps) {
     [records],
   );
 
+  const binList = useMemo(
+    () => orderDomain(records.map((r) => String(r.bin)), order?.binOrder ?? []),
+    [records, order],
+  );
+
   const build = (vg: VG) => {
     const genomes = records.map((r) => String(r.genome));
     const bins = records.map((r) => String(r.bin));
     const xDomain = orderDomain(genomes, order?.genomeOrder ?? []);
     const yDomain = orderDomain(bins, order?.binOrder ?? []);
-    return registerArrow(TABLE, table!).then(() =>
-      vg.plot(
-        vg.cell(vg.from(TABLE), { x: 'genome', y: 'bin', fill: 'prop' }),
+    // Outline every cell of the selected bin's row with a second cell layer.
+    const selRows = selectedBin ? records.filter((r) => String(r.bin) === selectedBin) : [];
+    const registrations = [registerArrow(TABLE, table!)];
+    if (selRows.length) {
+      const selTable = tableFromJSON(
+        selRows.map((r) => ({ genome: String(r.genome), bin: String(r.bin) })),
+      );
+      registrations.push(registerArrow(HIGHLIGHT, selTable));
+    }
+    return Promise.all(registrations).then(() => {
+      const marks = [vg.cell(vg.from(TABLE), { x: 'genome', y: 'bin', fill: 'prop' })];
+      if (selRows.length) {
+        marks.push(
+          vg.cell(vg.from(HIGHLIGHT), {
+            x: 'genome',
+            y: 'bin',
+            fill: SELECT_STROKE,
+            fillOpacity: 0.2,
+            stroke: SELECT_STROKE,
+            strokeWidth: 1.5,
+          }),
+        );
+      }
+      return vg.plot(
+        ...marks,
         vg.xDomain(xDomain),
         vg.yDomain(yDomain),
         vg.colorScheme('blues'),
@@ -74,8 +105,8 @@ export function BinSetHeatmapRenderer({ params, result }: RendererProps) {
         vg.marginLeft(90),
         vg.width(Math.max(360, xDomain.length * 20 + 180)),
         vg.height(Math.max(200, yDomain.length * 20 + 340)),
-      ),
-    );
+      );
+    });
   };
 
   if (!table) return <div className="mosaic-error">expected tabular result</div>;
@@ -84,7 +115,41 @@ export function BinSetHeatmapRenderer({ params, result }: RendererProps) {
 
   return (
     <div className="mosaic-view">
-      <MosaicChart build={build} deps={[records, order]} />
+      <div style={binListStyle} role="listbox" aria-label="Select a bin">
+        {binList.map((bin) => (
+          <button
+            key={bin}
+            type="button"
+            role="option"
+            aria-selected={bin === selectedBin}
+            style={binButtonStyle(bin === selectedBin)}
+            onClick={() => onSelectBin?.(bin === selectedBin ? null : bin)}
+          >
+            {bin}
+          </button>
+        ))}
+      </div>
+      <MosaicChart build={build} deps={[records, order, selectedBin]} />
     </div>
   );
+}
+
+const binListStyle: CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 4,
+  maxHeight: 96,
+  overflowY: 'auto',
+};
+
+function binButtonStyle(selected: boolean): CSSProperties {
+  return {
+    border: `1px solid ${selected ? SELECT_STROKE : 'var(--border)'}`,
+    background: selected ? SELECT_STROKE : 'var(--panel)',
+    color: selected ? '#1a1d24' : 'var(--text)',
+    borderRadius: 4,
+    padding: '2px 8px',
+    fontSize: '0.8rem',
+    cursor: 'pointer',
+  };
 }

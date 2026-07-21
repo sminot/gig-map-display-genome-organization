@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { functionModules, getFunctionModule } from './functions';
 import type { FunctionModule } from './functions';
 import { SchemaForm } from './forms/SchemaForm';
@@ -6,6 +6,8 @@ import { defaultsFor } from './schema/fields';
 import * as api from './api/client';
 import type { Bookmark, RunResult } from './api/client';
 import { BookmarksPanel } from './session/BookmarksPanel';
+import { DatasetLinksPanel } from './session/DatasetLinksPanel';
+import { BinInspectorDrawer } from './session/BinInspectorDrawer';
 import { ExportBar } from './session/ExportBar';
 import { ExportProvider } from './session/exports';
 
@@ -31,29 +33,58 @@ export default function App() {
   const [result, setResult] = useState<RunResult | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedBin, setSelectedBin] = useState<string | null>(null);
+  const runAbort = useRef<AbortController | null>(null);
+
+  const pangenomeId = typeof paramValues.pangenomeId === 'string' ? paramValues.pangenomeId : null;
+
+  // Drop a stale bin selection only when the primary pangenome changes, so a bin
+  // from another pangenome can't linger — but a selection survives a view switch
+  // (that is what makes brushing visible ACROSS views).
+  useEffect(() => {
+    setSelectedBin(null);
+  }, [pangenomeId]);
 
   const selectFunction = (id: string) => {
     const mod = getFunctionModule(id)!;
+    // Carry shared context (pangenome, contrast, bin, …) across the view switch so
+    // the explorer keeps your place, re-runs immediately, and the brushed bin stays
+    // highlighted. Only same-name, same-kind fields with a non-empty value carry.
+    const prevKinds = new Map(selected.params.fields.map((f) => [f.name, f.meta.kind]));
+    const next = defaultsFor(mod.params);
+    for (const { name, meta } of mod.params.fields) {
+      const v = paramValues[name];
+      const empty = v === '' || v === undefined || (Array.isArray(v) && v.length === 0);
+      if (prevKinds.get(name) === meta.kind && !empty) next[name] = v;
+    }
     setSelectedId(id);
-    setParamValues(defaultsFor(mod.params));
+    setParamValues(next);
     setResult(null);
     setLastRunParams(null);
     setError(null);
   };
 
   const run = async (params: Record<string, unknown>) => {
+    runAbort.current?.abort();
+    const controller = new AbortController();
+    runAbort.current = controller;
     setRunning(true);
     setError(null);
     try {
       const body = selected.toRequest ? selected.toRequest(params) : params;
-      const res = await api.runFunction(selected.id, body as Record<string, unknown>);
+      const res = await api.runFunction(
+        selected.id,
+        body as Record<string, unknown>,
+        controller.signal,
+      );
       setResult(res);
       setLastRunParams(params);
     } catch (e) {
+      if (api.isAbortError(e)) return;
       setError(e instanceof Error ? e.message : String(e));
       setResult(null);
     } finally {
-      setRunning(false);
+      if (runAbort.current === controller) setRunning(false);
     }
   };
 
@@ -114,6 +145,8 @@ export default function App() {
           currentParams={paramValues}
           onLoad={loadBookmark}
         />
+
+        <DatasetLinksPanel />
       </aside>
 
       <main className="viewport">
@@ -123,12 +156,25 @@ export default function App() {
             {running && <p className="status">Running…</p>}
             {error && <p className="sf-error" role="alert">{error}</p>}
             {!running && !error && !result && (
-              <p className="status">Select a function, set parameters, and Run.</p>
+              <p className="status">Select a function and set its parameters.</p>
             )}
-            {result && <Renderer params={lastRunParams ?? {}} result={result} />}
+            {result && (
+              <Renderer
+                params={lastRunParams ?? {}}
+                result={result}
+                selectedBin={selectedBin}
+                onSelectBin={setSelectedBin}
+              />
+            )}
           </div>
         </ExportProvider>
       </main>
+
+      <BinInspectorDrawer
+        pangenomeId={pangenomeId}
+        bin={selectedBin}
+        onClose={() => setSelectedBin(null)}
+      />
     </div>
   );
 }

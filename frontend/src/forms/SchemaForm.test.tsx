@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { SchemaForm } from './SchemaForm';
 import {
@@ -26,6 +26,19 @@ const mockApi = vi.mocked(api);
 function Harness({ def }: { def: ParamsDef }) {
   const [value, setValue] = useState<Record<string, unknown>>(() => defaultsFor(def));
   return <SchemaForm def={def} value={value} onChange={setValue} />;
+}
+
+function AutoHarness({
+  def,
+  onSubmit,
+  initial,
+}: {
+  def: ParamsDef;
+  onSubmit: (params: Record<string, unknown>) => void;
+  initial?: Record<string, unknown>;
+}) {
+  const [value, setValue] = useState<Record<string, unknown>>(() => initial ?? defaultsFor(def));
+  return <SchemaForm def={def} value={value} onChange={setValue} onSubmit={onSubmit} />;
 }
 
 beforeEach(() => {
@@ -86,5 +99,49 @@ describe('SchemaForm data-backed fields', () => {
     fireEvent.change(screen.getByLabelText('Pangenome'), { target: { value: 'p2' } });
     await waitFor(() => expect(mockApi.getBins).toHaveBeenCalledWith('p2'));
     expect(mockApi.getBins).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('SchemaForm auto-run', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('fires onSubmit after the debounce once params are valid', () => {
+    const onSubmit = vi.fn();
+    const def = defineParams({ threshold: number('Threshold', { min: 0 }) });
+    render(<AutoHarness def={def} onSubmit={onSubmit} initial={{ threshold: 0 }} />);
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(300);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledWith({ threshold: 0 });
+  });
+
+  it('does not fire while a required field is missing, then fires once valid', () => {
+    const onSubmit = vi.fn();
+    const def = defineParams({ threshold: number('Threshold', { min: 0 }) });
+    render(<AutoHarness def={def} onSubmit={onSubmit} initial={{ threshold: '' }} />);
+
+    vi.advanceTimersByTime(300);
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('Threshold'), { target: { value: '5' } });
+    vi.advanceTimersByTime(300);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledWith({ threshold: 5 });
+  });
+
+  it('cancels a pending run so only the latest value fires', () => {
+    const onSubmit = vi.fn();
+    const def = defineParams({ threshold: number('Threshold', { min: 0 }) });
+    render(<AutoHarness def={def} onSubmit={onSubmit} initial={{ threshold: 1 }} />);
+
+    // Two edits before the debounce elapses -> earlier schedules are cancelled.
+    fireEvent.change(screen.getByLabelText('Threshold'), { target: { value: '5' } });
+    fireEvent.change(screen.getByLabelText('Threshold'), { target: { value: '9' } });
+    vi.advanceTimersByTime(300);
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledWith({ threshold: 9 });
   });
 });

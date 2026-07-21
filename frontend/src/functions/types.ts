@@ -10,6 +10,8 @@ export type RendererFamily = 'webgl' | 'mosaic' | 'svg';
 export interface RendererProps {
   params: Record<string, unknown>;
   result: RunResult;
+  selectedBin?: string | null;
+  onSelectBin?: (bin: string | null) => void;
 }
 
 export type Renderer = FC<RendererProps>;

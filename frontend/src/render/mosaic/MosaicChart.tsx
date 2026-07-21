@@ -13,18 +13,27 @@ interface MosaicChartProps {
 export function MosaicChart({ build, deps }: MosaicChartProps) {
   const host = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  // Booting DuckDB-WASM and running the plot query takes seconds (especially the
+  // first chart of a session). Show a pending hint so the blank host doesn't
+  // read as a broken render.
+  const [pending, setPending] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setError(null);
+    setPending(true);
     (async () => {
       try {
         const { vg } = await getMosaic();
         const node = await build(vg);
         if (cancelled) return;
         host.current?.replaceChildren(node);
+        setPending(false);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : String(e));
+          setPending(false);
+        }
       }
     })();
     return () => {
@@ -35,5 +44,10 @@ export function MosaicChart({ build, deps }: MosaicChartProps) {
   }, deps);
 
   if (error) return <div className="mosaic-error">chart error: {error}</div>;
-  return <div ref={host} className="mosaic-chart" />;
+  return (
+    <>
+      {pending && <p className="mosaic-loading">Rendering…</p>}
+      <div ref={host} className="mosaic-chart" />
+    </>
+  );
 }

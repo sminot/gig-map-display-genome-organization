@@ -116,6 +116,12 @@ class DatasetRegistry:
     def phylogeny(self, dataset_id: str) -> PangenomePhylogeny:
         return _load_phylogeny(str(self.require(dataset_id, "phylogenies").data_dir))
 
+    def bin_name_set(self, dataset_id: str) -> frozenset[str]:
+        return _bin_name_set(str(self.require(dataset_id, "pangenome").data_dir))
+
+    def feature_name_set(self, dataset_id: str) -> frozenset[str]:
+        return _feature_name_set(str(self.require(dataset_id, "contrast").data_dir))
+
 
 # gig_map_io readers cache their DataFrames per instance, so cache the instances.
 @lru_cache(maxsize=None)
@@ -131,3 +137,13 @@ def _load_contrast(data_dir: str) -> ContrastMetagenomes:
 @lru_cache(maxsize=None)
 def _load_phylogeny(data_dir: str) -> PangenomePhylogeny:
     return PangenomePhylogeny(data_dir)
+
+
+@lru_cache(maxsize=None)
+def _bin_name_set(data_dir: str) -> frozenset[str]:
+    return frozenset(_load_pangenome(data_dir).bin_names)
+
+
+@lru_cache(maxsize=None)
+def _feature_name_set(data_dir: str) -> frozenset[str]:
+    return frozenset(_load_contrast(data_dir).association["feature"].dropna().unique())

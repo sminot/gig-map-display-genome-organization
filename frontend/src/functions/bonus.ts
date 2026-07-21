@@ -1,12 +1,12 @@
 import { defineParams, datasetSelect, binSelect, text } from '../schema/fields';
-import { makePlaceholder } from './PlaceholderRenderer';
 import { RarefactionRenderer } from '../render/mosaic/RarefactionRenderer';
 import { BinSizeHistogramRenderer } from '../render/mosaic/BinSizeHistogramRenderer';
 import { BinStatsRenderer } from '../render/mosaic/BinStatsRenderer';
+import { EnrichedTermsRenderer } from '../render/mosaic/EnrichedTermsRenderer';
 import type { FunctionModule } from './types';
 
-// Bonus functions (ARCHITECTURE.md §4). Same registry pattern; exposed if the
-// backend implements them. enriched_terms keeps its placeholder renderer.
+// Bonus functions (ARCHITECTURE.md §4). Same registry pattern; each is exposed
+// only because the backend implements it.
 
 export const rarefaction: FunctionModule = {
   id: 'rarefaction',
@@ -32,13 +32,13 @@ export const enrichedTerms: FunctionModule = {
   id: 'enriched_terms',
   title: 'Enriched Terms',
   category: 'Bins',
-  description: "Fisher-test functional term enrichment for a bin's genes.",
+  description: "Fisher-test enrichment of product-name terms among a bin's genes.",
   family: 'mosaic',
   params: defineParams({
     pangenomeId: datasetSelect('Pangenome', 'pangenome'),
     bin: binSelect('Bin', { dependsOn: 'pangenomeId' }),
   }),
-  Renderer: makePlaceholder('mosaic'),
+  Renderer: EnrichedTermsRenderer,
 };
 
 export const binStats: FunctionModule = {

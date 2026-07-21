@@ -226,10 +226,7 @@ export function buildRenderData(
   let overlayAbsMax = 0;
   if (meta.overlayByBin) {
     overlayByBin = new Map(Object.entries(meta.overlayByBin));
-    for (const v of overlayByBin.values()) {
-      const a = Math.abs(v);
-      if (Number.isFinite(a) && a > overlayAbsMax) overlayAbsMax = a;
-    }
+    overlayAbsMax = robustAbsMax([...overlayByBin.values()]);
   }
 
   return {
@@ -374,6 +371,12 @@ export function ordinalColor(index: number): Rgba {
   return ORDINAL_PALETTE[index % ORDINAL_PALETTE.length];
 }
 
+// Fade an arc's alpha so a selected bin's arcs stand out against the rest.
+const DIMMED_ALPHA = 0.12;
+function dimmed(color: Rgba): Rgba {
+  return [color[0], color[1], color[2], color[3] * DIMMED_ALPHA];
+}
+
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
@@ -387,6 +390,22 @@ export function sequentialColor(t: number): Rgba {
 const DIVERGING_LOW: Rgba = [0.19, 0.51, 0.74, 1]; // blue (negative)
 const DIVERGING_MID: Rgba = [0.97, 0.97, 0.97, 1]; // white (zero)
 const DIVERGING_HIGH: Rgba = [0.84, 0.19, 0.15, 1]; // red (positive)
+
+// Saturation extent for the overlay: the 95th percentile of |stat| rather than
+// the raw max, so a single outlier bin doesn't collapse every other bin onto the
+// white midpoint. Uses numpy-style linear interpolation between order statistics.
+export function robustAbsMax(values: number[], percentile = 0.95): number {
+  const abs = values
+    .map(Math.abs)
+    .filter((a) => Number.isFinite(a))
+    .sort((x, y) => x - y);
+  if (abs.length === 0) return 0;
+  if (abs.length === 1) return abs[0];
+  const rank = percentile * (abs.length - 1);
+  const lo = Math.floor(rank);
+  const hi = Math.ceil(rank);
+  return lo === hi ? abs[lo] : abs[lo] + (rank - lo) * (abs[hi] - abs[lo]);
+}
 
 // Diverging blue-white-red centered at 0; `absMax` sets the saturation extent.
 export function divergingColor(value: number, absMax: number): Rgba {
@@ -450,12 +469,14 @@ function ringBoundsFor(
 
 // Builds the arc instances for one layer. Base mode also draws the reference
 // contig ring; both modes draw genome rings and (when overlay=outerTrack) an
-// outer heat ring keyed by each gene's bin stat.
+// outer heat ring keyed by each gene's bin stat. When `selectedBin` is set,
+// arcs whose gene belongs to another bin are drawn dimmed so the selection reads.
 export function buildArcInstances(
   rd: RenderData,
   base: BaseLayout,
   wedge: WedgeLayout,
   mode: 'base' | 'wedge',
+  selectedBin?: string | null,
 ): Float32Array {
   const values: number[] = [];
   const sink: ArcSink = {
@@ -483,7 +504,14 @@ export function buildArcInstances(
     for (const gene of rd.referenceGenes.values()) {
       const hit = geneMap.get(gene.gene);
       if (!hit) continue;
-      sink.push(gene.startAngle, gene.endAngle, inner, outer, arcColorFor(rd, gene, genome, hit));
+      const color = arcColorFor(rd, gene, genome, hit);
+      sink.push(
+        gene.startAngle,
+        gene.endAngle,
+        inner,
+        outer,
+        selectedBin && gene.bin !== selectedBin ? dimmed(color) : color,
+      );
     }
   });
 
@@ -497,7 +525,14 @@ export function buildArcInstances(
       for (const gene of rd.referenceGenes.values()) {
         const v = rd.overlayByBin.get(gene.bin);
         if (v === undefined) continue;
-        sink.push(gene.startAngle, gene.endAngle, bounds.inner, bounds.outer, divergingColor(v, rd.overlayAbsMax));
+        const color = divergingColor(v, rd.overlayAbsMax);
+        sink.push(
+          gene.startAngle,
+          gene.endAngle,
+          bounds.inner,
+          bounds.outer,
+          selectedBin && gene.bin !== selectedBin ? dimmed(color) : color,
+        );
       }
     }
   }

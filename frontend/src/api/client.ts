@@ -70,6 +70,43 @@ export interface GenomeOrganizationMeta {
   overlayChannel?: 'arcColor' | 'outerTrack';
 }
 
+// Contrast -> reference-pangenome link (inferred, user-overridable).
+export interface DatasetLink {
+  contrastId: string;
+  referencePangenomeId: string | null;
+  candidates: string[];
+  ambiguous: boolean;
+  source: 'inferred' | 'user';
+}
+
+// Per-bin detail shown in the bin inspector drawer.
+export interface BinDossier {
+  bin: string;
+  pangenomeId: string;
+  nGenes: number;
+  nGenomes: number;
+  totalGenomes: number;
+  prevalence: number;
+  isCore: boolean;
+  presence: { genome: string; prop: number }[];
+  enrichedTerms: { term: string; oddsRatio: number; qvalue: number }[];
+  synteny: { length: number; nGenes: number; nGroups: number } | null;
+  contrasts: {
+    contrastId: string;
+    name: string;
+    estimate: number | null;
+    pvalue: number | null;
+    qvalue: number | null;
+  }[];
+  phylogeny: { phylogenyId: string; concordance: number | null; sharedLeaves: number } | null;
+}
+
+// Aborted fetches reject with a DOMException named 'AbortError' (not always an
+// Error subclass across environments), so match on the name; callers swallow it.
+export function isAbortError(e: unknown): boolean {
+  return typeof e === 'object' && e !== null && (e as { name?: unknown }).name === 'AbortError';
+}
+
 async function assertOk(res: Response): Promise<Response> {
   if (!res.ok) {
     let detail = '';
@@ -83,8 +120,8 @@ async function assertOk(res: Response): Promise<Response> {
   return res;
 }
 
-async function getJson<T>(path: string): Promise<T> {
-  const res = await assertOk(await fetch(`${API_BASE}${path}`));
+async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const res = await assertOk(await fetch(`${API_BASE}${path}`, { signal }));
   return (await res.json()) as T;
 }
 
@@ -112,12 +149,14 @@ export async function getFunctions(): Promise<FunctionInfo[]> {
 export async function runFunction(
   functionId: string,
   params: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<RunResult> {
   const res = await assertOk(
     await fetch(`${API_BASE}/run/${encodeURIComponent(functionId)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
+      signal,
     }),
   );
   const ct = res.headers.get('content-type') ?? '';
@@ -186,6 +225,39 @@ export async function createBookmark(input: {
 export async function deleteBookmark(id: string): Promise<void> {
   await assertOk(
     await fetch(`${API_BASE}/bookmarks/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  );
+}
+
+export async function getLinks(): Promise<DatasetLink[]> {
+  return getJson<DatasetLink[]>('/links');
+}
+
+export async function setLink(contrastId: string, pangenomeId: string): Promise<DatasetLink> {
+  const res = await assertOk(
+    await fetch(`${API_BASE}/links/${encodeURIComponent(contrastId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pangenomeId }),
+    }),
+  );
+  return (await res.json()) as DatasetLink;
+}
+
+export async function clearLink(contrastId: string): Promise<DatasetLink> {
+  const res = await assertOk(
+    await fetch(`${API_BASE}/links/${encodeURIComponent(contrastId)}`, { method: 'DELETE' }),
+  );
+  return (await res.json()) as DatasetLink;
+}
+
+export async function getBinDossier(
+  pangenomeId: string,
+  bin: string,
+  signal?: AbortSignal,
+): Promise<BinDossier> {
+  return getJson<BinDossier>(
+    `/pangenome/${encodeURIComponent(pangenomeId)}/bin/${encodeURIComponent(bin)}`,
+    signal,
   );
 }
 

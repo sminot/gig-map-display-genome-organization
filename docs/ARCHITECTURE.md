@@ -84,6 +84,24 @@ All under `/api`. Tabular payloads use Arrow IPC stream
 - `GET /api/functions` → `[{id, title, category, description}]` for the launcher.
 - `POST /api/run/{functionId}` body = params JSON → Arrow or JSON per function.
 - `GET/POST/DELETE /api/bookmarks` → session bookmarks (§5).
+- `GET /api/links` → `[{contrastId, referencePangenomeId, candidates:[...], ambiguous, source:"inferred"|"user"}]`.
+  Each contrast is linked to its reference pangenome by matching the contrast's association `feature`
+  name-set to a pangenome's bin-name set (exact set equality; bin-COUNT equality as fallback), with
+  `organism` as tiebreaker. `PUT /api/links/{contrastId}` `{pangenomeId}` sets a user override,
+  `DELETE /api/links/{contrastId}` clears it; overrides persist under `SESSION_DIR/links/`.
+- `GET /api/pangenome/{pangenomeId}/bin/{bin}` → the Bin Inspector dossier (JSON): `{bin, pangenomeId,
+  nGenes, nGenomes, totalGenomes, prevalence, isCore, presence:[{genome,prop}], enrichedTerms:[{term,oddsRatio,qvalue}],
+  synteny:{length,nGenes,nGroups}|null, contrasts:[{contrastId,name,estimate,pvalue,qvalue}], phylogeny:{phylogenyId,concordance,sharedLeaves}|null}`.
+  Aggregates the per-bin views for the pangenome and its **linked** contrasts (optional sections degrade to null on error).
+
+### Reactive UI additions (incremental, on top of §3/§6)
+- **Auto-run**: `SchemaForm` has no Run button — it applies params on change (300ms debounce, cancels the
+  in-flight request via `AbortController`), and only fires once every non-optional field is non-empty.
+- **Shared selection**: `RendererProps` gains optional `selectedBin?: string|null` and
+  `onSelectBin?: (bin|null)=>void`. Bin-level renderers highlight `selectedBin` and call `onSelectBin` on click.
+  App holds `selectedBin`; clicking a bin opens the **Bin Inspector drawer** (dossier endpoint above). The
+  selection and the shared params (pangenome, …) carry across view switches so brushing is visible across views;
+  the selection resets only when the pangenome changes.
 
 ### Functions (functionId → params → output)
 1. **`genome_organization`** — params `{pangenomeId, referenceGenome?, colorBy?, overlay?:{contrastId, stat, channel:"arcColor"|"outerTrack"}}`.

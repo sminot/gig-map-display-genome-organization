@@ -31,8 +31,10 @@ const AXIS = '#1a1d24';
 const CORE_FILL = '#2f6feb';
 const OTHER_FILL = '#94a3b8';
 const MUTED = '#6b7280';
+const SELECT_BG = 'rgba(245, 158, 11, 0.16)';
+const SELECT_STROKE = '#f59e0b';
 
-export function CoreGenome({ result }: RendererProps) {
+export function CoreGenome({ result, selectedBin, onSelectBin }: RendererProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const data = result.kind === 'json' ? (result.data as CoreGenomeData) : null;
 
@@ -97,14 +99,32 @@ export function CoreGenome({ result }: RendererProps) {
           const y = PAD_TOP + i * ROW_H;
           const w = barWidth(r.n_genomes, maxGenomes, BAR_MAX);
           const isCore = r.bin === coreBin;
+          const isSelected = r.bin === selectedBin;
           return (
-            <g key={r.bin}>
+            <g
+              key={r.bin}
+              onClick={() => onSelectBin?.(isSelected ? null : r.bin)}
+              style={{ cursor: onSelectBin ? 'pointer' : 'default' }}
+            >
+              <rect x={0} y={y - 4} width={WIDTH} height={ROW_H} fill="transparent" />
+              {isSelected && (
+                <rect
+                  x={2}
+                  y={y - 4}
+                  width={WIDTH - 4}
+                  height={ROW_H - 2}
+                  rx={4}
+                  fill={SELECT_BG}
+                  stroke={SELECT_STROKE}
+                  strokeWidth={1.5}
+                />
+              )}
               <text
                 x={LABEL_W}
                 y={y + BAR_H / 2 + 4}
                 textAnchor="end"
                 fontSize={12}
-                fontWeight={isCore ? 700 : 400}
+                fontWeight={isCore || isSelected ? 700 : 400}
                 fill={isCore ? CORE_FILL : AXIS}
               >
                 {r.bin}
@@ -116,6 +136,8 @@ export function CoreGenome({ result }: RendererProps) {
                 height={BAR_H}
                 rx={2}
                 fill={isCore ? CORE_FILL : OTHER_FILL}
+                stroke={isSelected ? SELECT_STROKE : 'none'}
+                strokeWidth={isSelected ? 1.5 : 0}
               >
                 <title>
                   {r.bin}: {r.n_genomes} genomes, {r.n_genes} genes

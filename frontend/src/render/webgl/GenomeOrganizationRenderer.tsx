@@ -144,6 +144,7 @@ interface Scene {
   wedgeCount: number;
   zoom: Zoom;
   rd: RenderData | null;
+  selectedBin: string | null;
   dirty: boolean;
   lastScale: number;
   lastW: number;
@@ -246,11 +247,15 @@ function nearestGene(rd: RenderData, searchAngle: number): ReferenceGene | null 
   return hit;
 }
 
-export function GenomeOrganizationRenderer({ params, result }: RendererProps) {
+export function GenomeOrganizationRenderer({ params, result, selectedBin, onSelectBin }: RendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<Scene | null>(null);
   const genomeMetaRef = useRef<Map<string, GenomeRow>>(new Map());
+  // The GL/interaction effect runs once; mirror the latest click callback into a
+  // ref so its click handler always calls the current onSelectBin.
+  const onSelectBinRef = useRef(onSelectBin);
+  onSelectBinRef.current = onSelectBin;
   const [status, setStatus] = useState<string | null>('Loading…');
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [caption, setCaption] = useState<string>('');
@@ -308,6 +313,7 @@ export function GenomeOrganizationRenderer({ params, result }: RendererProps) {
       wedgeCount: 0,
       zoom: createZoom(),
       rd: null,
+      selectedBin: null,
       dirty: false,
       lastScale: -1,
       lastW: 0,
@@ -389,8 +395,8 @@ export function GenomeOrganizationRenderer({ params, result }: RendererProps) {
       const scaleChanged = Math.abs(z.displayRadiusScale - s.lastScale) > 0.002;
       const sizeChanged = w !== s.lastW || h !== s.lastH;
       if (s.dirty || scaleChanged || sizeChanged) {
-        const baseData = buildArcInstances(s.rd, base, wedge, 'base');
-        const wedgeData = buildArcInstances(s.rd, base, wedge, 'wedge');
+        const baseData = buildArcInstances(s.rd, base, wedge, 'base', s.selectedBin);
+        const wedgeData = buildArcInstances(s.rd, base, wedge, 'wedge', s.selectedBin);
         s.baseCount = baseData.length / 8;
         s.wedgeCount = wedgeData.length / 8;
         gl.bindBuffer(gl.ARRAY_BUFFER, s.baseBuffer);
@@ -442,7 +448,11 @@ export function GenomeOrganizationRenderer({ params, result }: RendererProps) {
 
     // ── Interaction ──────────────────────────────────────────────────────────
     const ZOOM_FACTOR = 1.15;
+    const CLICK_SLOP = 4; // px of pointer travel below which a press counts as a click
     let dragging = false;
+    let downX = 0;
+    let downY = 0;
+    let moved = false;
     const relTheta = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
       return pointerTheta(e.clientX - rect.left - canvas.width / 2, e.clientY - rect.top - canvas.height / 2);
@@ -453,10 +463,18 @@ export function GenomeOrganizationRenderer({ params, result }: RendererProps) {
 
     const onDown = (e: MouseEvent) => {
       dragging = true;
+      moved = false;
+      downX = e.clientX;
+      downY = e.clientY;
       scene.zoom.isHovering = true;
       setFocus(relTheta(e));
     };
-    const onUp = () => {
+    // A press that didn't turn into a drag selects the bin under the cursor.
+    const onUp = (e: MouseEvent) => {
+      if (dragging && !moved) {
+        const pick = pickGene(e);
+        if (pick) onSelectBinRef.current?.(pick.gene.bin);
+      }
       dragging = false;
     };
     const onWheel = (e: WheelEvent) => {
@@ -476,16 +494,19 @@ export function GenomeOrganizationRenderer({ params, result }: RendererProps) {
     };
     const onMove = (e: MouseEvent) => {
       scene.zoom.isHovering = true;
-      if (dragging) setFocus(relTheta(e));
+      if (dragging) {
+        if (!moved && Math.hypot(e.clientX - downX, e.clientY - downY) > CLICK_SLOP) moved = true;
+        setFocus(relTheta(e));
+      }
       updateTooltip(e);
     };
 
-    const updateTooltip = (e: MouseEvent) => {
+    // Map a pointer event to the reference gene (and hit genome, if any) under
+    // the cursor, reusing the same ring hit-testing the tooltip relies on. Shared
+    // by the tooltip and click-to-select so both stay in sync.
+    const pickGene = (e: MouseEvent): { gene: ReferenceGene; hitGenome: string | null } | null => {
       const s = sceneRef.current;
-      if (!s || !s.rd || !s.lastGeom) {
-        setTooltip(null);
-        return;
-      }
+      if (!s || !s.rd || !s.lastGeom) return null;
       const { base, wedge } = s.lastGeom;
       const z = s.zoom;
       const rect = canvas.getBoundingClientRect();
@@ -503,16 +524,14 @@ export function GenomeOrganizationRenderer({ params, result }: RendererProps) {
       const inWedge = z.zoomLevel > 1.05 && r >= wedge.blowInner - SNAP;
       if (inWedge) {
         if (r > wedge.blowOuter + SNAP) {
-          setTooltip(null);
-          return;
+          return null;
         }
         const wedgeHalfSpan = z.wedgeSpan * PI;
         let localAngle = theta - z.focusAngle;
         if (localAngle > PI) localAngle -= TWO_PI;
         if (localAngle < -PI) localAngle += TWO_PI;
         if (Math.abs(localAngle) > wedgeHalfSpan + 0.05) {
-          setTooltip(null);
-          return;
+          return null;
         }
         searchAngle = (((z.focusAngle + localAngle / z.zoomLevel) % TWO_PI) + TWO_PI) % TWO_PI;
         let best = SNAP;
@@ -533,8 +552,7 @@ export function GenomeOrganizationRenderer({ params, result }: RendererProps) {
           }
         }
         if (!hitGenome && !isOuterTrack) {
-          setTooltip(null);
-          return;
+          return null;
         }
       } else {
         let best = SNAP;
@@ -562,16 +580,23 @@ export function GenomeOrganizationRenderer({ params, result }: RendererProps) {
           }
         }
         if (!isReference && !isOuterTrack && !hitGenome) {
-          setTooltip(null);
-          return;
+          return null;
         }
       }
 
       const gene = nearestGene(s.rd, searchAngle);
-      if (!gene) {
+      if (!gene) return null;
+      return { gene, hitGenome };
+    };
+
+    const updateTooltip = (e: MouseEvent) => {
+      const pick = pickGene(e);
+      const s = sceneRef.current;
+      if (!pick || !s || !s.rd) {
         setTooltip(null);
         return;
       }
+      const { gene, hitGenome } = pick;
 
       let pident = gene.pident;
       let coverage = gene.coverage;
@@ -676,6 +701,16 @@ export function GenomeOrganizationRenderer({ params, result }: RendererProps) {
     };
   }, [result, params]);
 
+  // Push the selected bin into the render loop so the next frame rebuilds the
+  // arc buffers with the non-selected bins dimmed.
+  useEffect(() => {
+    const s = sceneRef.current;
+    if (s) {
+      s.selectedBin = selectedBin ?? null;
+      s.dirty = true;
+    }
+  }, [selectedBin]);
+
   useRegisterExport(
     {
       png: () => {
@@ -691,7 +726,10 @@ export function GenomeOrganizationRenderer({ params, result }: RendererProps) {
 
   return (
     <div className="webgl-genome-org" ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} />
+      <canvas
+        ref={canvasRef}
+        style={{ display: 'block', width: '100%', height: '100%', cursor: onSelectBin ? 'pointer' : 'default' }}
+      />
       {caption && (
         <div className="webgl-caption" style={captionStyle}>
           {caption}

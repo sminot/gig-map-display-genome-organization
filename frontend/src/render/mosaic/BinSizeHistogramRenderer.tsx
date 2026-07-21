@@ -7,8 +7,9 @@ import { arrowToRecords, domainByMetric, recordsToCsv } from './dataShaping';
 
 const TABLE = 'bin_size_histogram';
 
-// Backend columns: bin_size (numeric bucket position), count (number of bins in
-// the bucket), bin_names (human-readable gene-count range, e.g. "5 - 6").
+// Backend columns: bin_size (numeric bucket position), count (total gene content
+// in the bucket — a gene-count-weighted histogram, not a bin tally), bin_names
+// (human-readable gene-count range, e.g. "5 - 6").
 export function BinSizeHistogramRenderer({ result }: RendererProps) {
   const table = result.kind === 'arrow' ? result.table : null;
   const records = useMemo(() => (table ? arrowToRecords(table) : []), [table]);
@@ -27,8 +28,8 @@ export function BinSizeHistogramRenderer({ result }: RendererProps) {
       vg.plot(
         vg.barY(vg.from(TABLE), { x: 'bin_names', y: 'count', fill: '#2f6feb' }),
         vg.xDomain(xDomain),
-        vg.xLabel('genes per bin'),
-        vg.yLabel('number of bins'),
+        vg.xLabel('bin size (genes per bin)'),
+        vg.yLabel('total gene content'),
         vg.xTickRotate(-45),
         vg.marginBottom(90),
         vg.width(760),
