@@ -1,8 +1,13 @@
 # Pangenome Viewer
 
-A browser-based tool for visualizing gene presence/absence patterns across a collection of microbial genomes. Built on output from the [gig-map](https://github.com/FredHutch/gig-map) alignment pipeline.
+A browser-based tool for visualizing gene presence/absence patterns across a collection
+of microbial genomes. Built on output from the
+[gig-map](https://github.com/FredHutch/gig-map) alignment pipeline.
 
 **Live app:** https://sminot.github.io/gig-map-display-genome-organization/
+
+It is also an **embeddable library**: the same code mounts into a DOM node owned by
+another application. See [Using it as a library](#using-it-as-a-library).
 
 ---
 
@@ -11,108 +16,119 @@ A browser-based tool for visualizing gene presence/absence patterns across a col
 - [What it does](#what-it-does)
 - [Quick start](#quick-start)
 - [Features](#features)
-  - [Loading data](#loading-data)
-  - [Reference genome selection](#reference-genome-selection)
-  - [Genome toggles](#genome-toggles)
-  - [Gene annotations](#gene-annotations)
-  - [Genome annotations](#genome-annotations)
-  - [Region selection (blowout)](#region-selection-blowout)
-  - [Export](#export)
 - [Input file formats](#input-file-formats)
-  - [Main alignment file](#main-alignment-file)
-  - [Gene annotation file](#gene-annotation-file)
-  - [Genome annotation file](#genome-annotation-file)
-- [Self-hosting with a single HTML file](#self-hosting-with-a-single-html-file)
+- [Self-hosting](#self-hosting)
+- [Using it as a library](#using-it-as-a-library)
 - [For developers](#for-developers)
 
 ---
 
 ## What it does
 
-Pangenome Viewer renders gene presence/absence data as an interactive circular figure. Each ring in the figure represents one genome:
+Pangenome Viewer renders gene presence/absence data as an interactive circular figure.
+Each ring represents one genome:
 
-- **Outermost ring** — the reference genome you select. Contigs appear as colored arcs; large contigs are labeled by name.
-- **Inner rings** — all other genomes. Where a gene aligns to the reference at that position, the arc is filled with that genome's color. Where no alignment exists, there is a gap.
+- **Outer ring** — the reference genome you select. Contigs appear as indigo arcs;
+  contigs of at least 50 kbp are labelled.
+- **Inner rings** — the other genomes. Where a gene aligns to the reference at that
+  position, the arc is filled with that genome's colour. Where no alignment exists,
+  there is a gap.
 
-This layout makes it easy to identify:
+This makes it easy to see:
 
 - **Core genes** — filled arcs across every ring
 - **Accessory genes** — present in some genomes, absent in others
-- **Unique genes** — present only in the reference (or only in one other genome)
+- **Unique genes** — present only in the reference, or only in one other genome
 
-No data is uploaded to any server. All processing happens in your browser.
+No data is uploaded anywhere. All processing happens in your browser.
 
 ---
 
 ## Quick start
 
-1. Open the app at https://sminot.github.io/gig-map-display-genome-organization/
-2. Drag and drop your `genomes.aln.csv.gz` file onto the page (or use the file picker).
-3. The circular figure renders immediately. Use the sidebar to select a reference genome, toggle which genomes are shown, or upload annotation files.
+Open https://sminot.github.io/gig-map-display-genome-organization/ — it loads a
+*Fusobacterium* demo dataset.
 
-Example datasets are available in the `example/` folder of this repository (e.g. `example/fanimalis.genomes.aln.csv.gz`).
+To view your own data, see [Self-hosting](#self-hosting): put your files in a `data/`
+folder next to a copy of `index.html` and serve the folder. To point the hosted app at
+a file you already serve somewhere with CORS enabled, pass it as a URL parameter:
+
+```
+?data=https://example.org/my-project.genomes.aln.csv.gz
+```
 
 ---
 
 ## Features
 
-### Loading data
+### Reference genome
 
-Drag and drop a `genomes.aln.csv.gz` file (the output of the gig-map pipeline) anywhere on the page. The file is parsed entirely in your browser — nothing is sent to a server.
+Search and pick the reference in the sidebar. The circular layout reorganises around
+that genome's contigs. Any genome in the dataset can serve as the reference.
 
-### Reference genome selection
+### Genome selection and ordering
 
-Use the **Reference Genome** dropdown in the sidebar to select which genome is displayed as the outermost ring. The circular layout reorganizes around that genome's contigs. Any genome in the dataset can serve as the reference.
-
-### Genome toggles
-
-Each genome in your dataset appears as a checkbox in the sidebar. Check or uncheck individual genomes to show or hide their rings. Use the **All** and **None** buttons to toggle everything at once.
+Each non-reference genome is a checkbox. Filter the list by name, or use **All** /
+**None**. **Sort by gene content** reorders the rings so neighbouring rings share gene
+content, by a greedy nearest-neighbour walk over gene-presence similarity — useful for
+spotting clades without a tree.
 
 ### Gene annotations
 
-Upload a gene annotation file (CSV or TSV, optionally gzip-compressed) to overlay functional or other per-gene information on the figure.
+Load a per-gene annotation table to highlight genes on an outer track.
 
-- The first column must contain gene IDs matching the `sseqid` values in your alignment file.
-- Additional columns are the annotation values. Select which column to display using the **Active annotation** control.
-
-Rendering depends on value type:
-
-| Value type | Rendering |
-|---|---|
-| Categorical (text) | Colored arcs per category; color legend in the sidebar |
-| Continuous (numeric) | Radial bars with height proportional to value, colored with the viridis scale |
-
-Hover over any arc to see the annotation value in a tooltip.
+- Pick a column with **Group by**; its values become selectable categories, each with a
+  count of *(genes on the reference / genes in the table)*.
+- Tick the categories to highlight. Click a swatch to override its colour.
+- **Name col.** chooses which column supplies the gene name in the tooltip.
 
 ### Genome annotations
 
-Upload a genome annotation file (CSV or TSV, optionally gzip-compressed) to color and sort genome rings by metadata such as isolation source, clade, or any categorical variable.
+Load a per-genome metadata table to colour, group, sort and label the rings.
 
-- The first column must contain genome IDs matching the `genome` values in your alignment file.
-- Additional columns are categorical annotation values.
+- **Color by** — colour rings by any column, using a selectable palette.
+- **Group by** — group and sort rings by a column; overrides **Color by** and
+  **Sort by**.
+- **Name col.** — show a friendlier name than the genome id, in the sidebar and the
+  tooltip.
+- **Tooltip cols.** — extra columns to list in the tooltip.
+- **Sort by** / **Order** — ring order, ascending or descending. Genomes missing from
+  the table sort last either way.
 
-You can:
+### Zoom wedge
 
-- **Color rings** by any annotation column using a selectable color palette (Tableau10, Set1, Set2, and others). A legend appears in the sidebar.
-- **Sort rings** by any annotation column, ascending or descending.
+Hover the circle and scroll to magnify a region; the wedge outside the circle shows it
+enlarged. Click and drag to move the wedge. **Wedge**, **Gap** and **Height** control
+its width, its distance from the circle, and how much of the viewport it takes.
+**Reset Zoom** or the **✕** on the region readout returns to the full circle. The
+readout shows the region in base pairs.
 
-### Region selection (blowout)
+### Tooltip
 
-Click and drag on the circular figure to select an angular region. The selected region expands outward, magnifying the arcs in that zone and displaying gene ID labels.
-
-- Multiple regions can be selected at the same time.
-- Click a selected region to remove it.
-- Press **Escape** to clear all selections.
+Hover any arc for the gene id, the genome, the position on the contig, percent identity
+and coverage, plus any annotation columns you selected.
 
 ### Export
 
-Download the figure using the export controls in the sidebar:
-
-| Format | Notes |
+| Button | Result |
 |---|---|
-| PNG | Raster image at screen resolution |
-| PDF | Opens the browser print dialog; choose "Save as PDF" |
-| Standalone HTML | Self-contained file that can be opened offline and retains interactivity |
+| **SVG** | Vector export. Every layer is real geometry — no embedded raster. |
+| **PNG** | Raster snapshot at screen resolution. |
+| **Embed** | Copies an `<iframe>` snippet for the current view to the clipboard. |
+
+An SVG of a 70-genome view is a few megabytes: the figure genuinely contains hundreds
+of thousands of arcs. Hide genomes you do not need before exporting if size matters.
+
+### Shareable state
+
+The URL always reflects what you are looking at — reference genome, visible genomes,
+annotation columns and selected categories, colour overrides, palette, sort, theme,
+zoom. Copy the address bar to share a view. Links made by earlier versions still work.
+
+### Theme
+
+The sun/moon button toggles light and dark. The choice is remembered and is part of the
+shareable URL.
 
 ---
 
@@ -120,9 +136,8 @@ Download the figure using the export controls in the sidebar:
 
 ### Main alignment file
 
-**Filename:** `genomes.aln.csv.gz` (gzip-compressed CSV)
-
-This is the standard output of the gig-map pipeline. Each row is one gene-to-genome alignment.
+`genomes.aln.csv.gz` — gzip-compressed CSV, the standard output of the gig-map
+pipeline. One row per gene-to-genome alignment.
 
 | Column | Description |
 |---|---|
@@ -133,71 +148,139 @@ This is the standard output of the gig-map pipeline. Each row is one gene-to-gen
 | `qstart` | Gene start position on the contig |
 | `qend` | Gene end position on the contig |
 | `qlen` | Total contig length |
-| `sstart` | Alignment start position within the gene |
-| `send` | Alignment end position within the gene |
+| `sstart` | Alignment start within the gene |
+| `send` | Alignment end within the gene |
 | `slen` | Total gene length |
 | `genome` | Genome identifier |
-| `coverage` | Fraction of the gene covered by the alignment (%) |
+| `coverage` | Percent of the gene covered by the alignment |
 
 ### Gene annotation file
 
-Optional. CSV or TSV, with or without gzip compression.
+Optional. `genes.annot.csv.gz`, or CSV/TSV with or without gzip.
 
-- **Column 1:** Gene ID — must match `sseqid` values in the alignment file.
-- **Remaining columns:** Annotation values (one column per annotation type). Values can be text (categorical) or numeric (continuous).
+- **Column 1** — gene ID, matching `sseqid` in the alignment file.
+- **Remaining columns** — annotation values, one column per annotation type.
 
 ### Genome annotation file
 
-Optional. CSV or TSV, with or without gzip compression.
+Optional. `genomes.annot.csv.gz`, or CSV/TSV with or without gzip.
 
-- **Column 1:** Genome ID — must match `genome` values in the alignment file.
-- **Remaining columns:** Categorical annotation values (one column per annotation type).
+- **Genome ID** — the `genome_id` column if present, otherwise column 1. Must match
+  `genome` in the alignment file.
+- **Remaining columns** — annotation values.
 
 ---
 
-## Self-hosting with a single HTML file
+## Self-hosting
 
-A single `index.html` loads all app scripts from the [jsDelivr](https://www.jsdelivr.com/) CDN — no build step, no npm, and no server-side logic required. Copy the HTML file, add your data, and serve the folder.
+No build step, no npm, no server-side logic. One `index.html` loads the app from the
+[jsDelivr](https://www.jsdelivr.com/) CDN; you supply the data.
 
-### How it works
+1. **Copy `demo/index.html`.** It is 11 lines: a single `<script>` tag pointing at
+   `pangenome-loader.js` at a pinned version tag.
 
-All JS and CSS are fetched at runtime from jsDelivr using URLs of the form:
-
-```
-https://cdn.jsdelivr.net/gh/sminot/gig-map-display-genome-organization@VERSION/filename
-```
-
-On startup the app auto-loads alignment data from a `data/` folder located next to `index.html`.
-
-### Setup
-
-1. **Download `index.html`** from the latest release at
-   https://github.com/sminot/gig-map-display-genome-organization/releases/latest
-   (inside the `pangenome-viewer-vX.Y.Z.zip` asset), or copy `test/index.html` directly from the repo.
-
-2. **Add your data.** Create a `data/` folder next to `index.html` and place your alignment file there named `genomes.aln.csv.gz`. Optionally include matching `genes.annot.csv.gz` and `genomes.annot.csv.gz` annotation files in the same folder. To load a differently-named file, pass `?data=data/your-file.genomes.aln.csv.gz` as a URL parameter.
+2. **Add your data.** Create a `data/` folder next to `index.html` containing
+   `genomes.aln.csv.gz`, and optionally `genes.annot.csv.gz` and
+   `genomes.annot.csv.gz`. The app auto-loads them on startup. For a differently named
+   alignment file, pass `?data=data/your-file.genomes.aln.csv.gz`.
 
 3. **Serve the folder** with any static file server:
    ```bash
    python3 -m http.server 8080
    ```
 
-4. **Open your browser** to the served URL (e.g. http://localhost:8080).
+4. **Open** http://localhost:8080.
 
-### Script tag structure
+To upgrade, change the version tag in that one `<script>` tag. Releases:
+https://github.com/sminot/gig-map-display-genome-organization/releases
 
-```html
-<!-- All app scripts loaded from jsDelivr CDN — no build step needed -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/sminot/gig-map-display-genome-organization@v1.0.1/style.css" />
-<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5/papaparse.min.js"></script>
-<!-- ... (see test/index.html for the full list) ... -->
-<script src="https://cdn.jsdelivr.net/gh/sminot/gig-map-display-genome-organization@v1.0.1/controls.js"></script>
+If your page already declares an import map, `pangenome-loader.js` will say so and
+stop; add `d3` and `papaparse` to your own map and load `src/standalone.js` from the
+CDN yourself.
+
+---
+
+## Using it as a library
+
+Pin a **tag**, never a branch, so builds are reproducible:
+
+```jsonc
+// package.json
+"dependencies": {
+  "gig-map-display-genome-organization": "github:sminot/gig-map-display-genome-organization#v2.0.0"
+}
 ```
 
-### Pinning to a specific version
+```js
+import { mount } from 'gig-map-display-genome-organization';
+import 'gig-map-display-genome-organization/style.css';
 
-The `@v1.0.1` segment in each jsDelivr URL pins all scripts to that release. To upgrade, replace the version string in every `<script>` and `<link>` tag in `index.html` with the new version number.
+const handle = mount(container, {
+  // Data is referenced, not embedded. Hand over rows you already have…
+  data: { rows: alignmentRows, geneAnnotationRows, genomeAnnotationRows },
+  // …or a URL, and the display fetches and parses it itself.
+  // data: { alignmentUrl: '/api/alignment.csv.gz' },
+
+  referenceGenome: 'GCF_000158275.2_ASM15827v2_genomic.fna.gz',
+  visibleGenomes: null,                 // null = every genome except the reference
+  geneAnnotation: { categoryColumn: 'bin', selectedCategories: ['Bin 1'] },
+  genomeAnnotation: { colorColumn: 'source', palette: 'Set2' },
+  zoom: { zoomLevel: 6, focusAngle: 1.4 },
+  theme: 'dark',
+  controls: false,                      // mount the figure alone, no sidebar
+});
+
+handle.update({ ...config, theme: 'light' });   // re-render in place; never remounts
+const svg = handle.toSVG();                     // vector export
+const png = await handle.toPNG(0.25);           // thumbnail
+handle.destroy();                               // required on unmount
+```
+
+`style.css` is scoped entirely under `.gmd-root`, so it cannot leak into your own
+styles — including a Tailwind layer.
+
+### `destroy()` is not optional
+
+Each display holds a **WebGL context**. Browsers allow only a handful of live contexts
+— roughly 16 in Chrome — and silently drop the oldest beyond that, at which point a
+display goes blank with **no error**. If you mount and unmount on tab or selection
+changes, call `destroy()` every time. `liveContextCount()` is exported so you can
+assert this in your own tests.
+
+### `GenomeDisplayConfig`
+
+A display is fully described by a serializable config: store it, restore it, and you
+get the same figure back — exactly, not approximately.
+
+- **JSON Schema**: [`schema/genome-display-config.schema.json`](schema/genome-display-config.schema.json),
+  importable as `gig-map-display-genome-organization/schema`.
+- **TypeScript**: [`types/index.d.ts`](types/index.d.ts), wired into the `exports` map.
+- **Validation**: `validateConfig(config)` throws on the first violation, including on
+  unknown properties, so a config from a newer version fails loudly instead of
+  rendering something subtly wrong.
+- **Versioning**: `version` is an integer; the migration policy is in
+  [DESIGN.md](DESIGN.md#config-versioning).
+
+Two things the config does **not** contain, both by design: the derived d3 colour
+scales (rebuilt deterministically from the palette, the column and the rows) and the
+canvas pixel size (the display is responsive and follows its container). Full list and
+rationale in [DESIGN.md](DESIGN.md#render-affecting-state-that-is-not-in-the-config).
+
+### Reading state back
+
+`mount()` returns the four contract methods plus two additions, because a host that
+renders the sidebar needs to know what the user did:
+
+```js
+const config = handle.getConfig();              // what is on screen right now
+const stop = handle.onChange((config) => save(config));   // fires on any change
+```
+
+### Bundling
+
+`d3` and `papaparse` are `dependencies`, left external in the library build so your
+bundler dedupes them against your own copies. The bundle is ~83 kB (~24 kB gzipped)
+and is a good candidate for `lazy(() => import(...))`.
 
 ---
 
@@ -205,36 +288,53 @@ The `@v1.0.1` segment in each jsDelivr URL pins all scripts to that release. To 
 
 ### Stack
 
-The app is a fully static site with no build step. Dependencies are loaded from CDN:
-
-- [D3.js v7](https://d3js.org/) — visualization and DOM manipulation
+- [D3](https://d3js.org/) — arc geometry, scales, colour
 - [Papa Parse](https://www.papaparse.com/) — CSV/TSV parsing
+- Canvas 2D for the circle, WebGL2 for the zoom wedge, SVG for labels
 
-### Source files
+### Running the app locally
 
-| File | Role |
-|---|---|
-| `index.html` | Page layout and DOM structure |
-| `style.css` | Dark theme styles |
-| `data-contract.js` | Shared application state definitions |
-| `app.js` | Data loading and parsing |
-| `annotation.js` | Gene annotation overlay rendering |
-| `genome-viz.js` | Core D3/Canvas circular visualization |
-| `controls.js` | UI event wiring |
-
-### Running locally
-
-No installation required. Serve the repo root with any static file server:
+No installation needed. Serve the repository root with any static file server:
 
 ```bash
-python3 -m http.server
+python3 -m http.server 8123
 ```
 
-Then open http://localhost:8000 in your browser.
+Then open http://localhost:8123. The app is ES modules with an import map; there is no
+build step and changes take effect on refresh. If you have npm, `npm run dev` serves
+the same page through Vite instead.
 
-### Contributing
+### Building the library
 
-Pull requests are welcome. Because there is no build system, changes take effect immediately when you refresh the page. The `example/` directory contains a sample dataset you can use to test your changes.
+```bash
+npm install
+npm run build        # -> dist/gig-map-display.js
+```
+
+`npm install` runs this automatically via `prepare`, which is also what makes a
+`github:` dependency work for consumers.
+
+### Tests
+
+```bash
+npm run test:unit      # node --test: config, state isolation, URL state
+npm run test:browser   # Playwright: instance isolation, destroy(), export
+npm test               # both
+```
+
+The browser tests need a real WebGL2 context; the Playwright config enables
+SwiftShader so headless runs check the WebGL assertions rather than skipping them.
+
+### Architecture
+
+Read [DESIGN.md](DESIGN.md) before your first change. The two invariants most likely to
+be broken by accident:
+
+1. **No module-level mutable state, no DOM ids, and no `document`-wide queries.** Two
+   displays must be able to coexist on one page.
+2. **The standalone app and the library are the same code.** `src/standalone.js` is a
+   thin caller of `mount()` with no privileged path. A change that helps one purpose
+   and breaks the other is not done.
 
 ---
 

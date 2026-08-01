@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>gig-map-display test harness</title>
+    <link rel="stylesheet" href="/style.css" />
+    <style>
+      html, body { margin: 0; height: 100%; background: #101018; }
+      .mount { width: 640px; height: 480px; }
+      #outside-scope { font-size: 17px; font-weight: 700; }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "d3": "https://cdn.jsdelivr.net/npm/d3@7.9.0/+esm",
+          "papaparse": "https://cdn.jsdelivr.net/npm/papaparse@5.4.1/+esm"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <!--
+      Deliberately outside any .gmd-root and reusing the library's own class names,
+      so the CSS-scoping test can prove style.css does not reach it.
+    -->
+    <p id="outside-scope" class="app-title control-section-heading">host content</p>
+
+    <div id="a" class="mount"></div>
+    <div id="b" class="mount"></div>
+    <div id="scratch" class="mount"></div>
+
+    <script type="module">
+      import * as api from '/src/index.js';
+      import { alignmentRows, geneAnnotationRows, genomeAnnotationRows } from '/test/browser/fixtures.js';
+
+      window.gmd = api;
+      window.fixtures = { alignmentRows, geneAnnotationRows, genomeAnnotationRows };
+      window.gmdReady = true;
+    </script>
+  </body>
+</html>

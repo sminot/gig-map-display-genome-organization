@@ -16,23 +16,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install
+        run: npm ci
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Browser tests
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:browser
+
+      # The standalone app has no build step — it is the source plus index.html — so
+      # the archive is what you unzip next to a data/ folder and serve. dist/ and
+      # types/ are the library build, for consumers that pin the tag with npm.
       - name: Create release zip
         run: |
-          zip pangenome-viewer-${{ github.ref_name }}.zip \
+          zip -r pangenome-viewer-${{ github.ref_name }}.zip \
             index.html \
             style.css \
-            annotation.js \
-            app.js \
-            controls.js \
-            data-contract.js \
-            export.js \
-            genome-annotation.js \
-            genome-viz.js \
-            selection.js \
-            webgl-renderer.js \
-            zoom-contract.js \
-            zoom-interaction.js \
-            zoom-state.js
+            pangenome-loader.js \
+            src \
+            schema \
+            types \
+            dist \
+            package.json \
+            README.md \
+            DESIGN.md \
+            LICENSE
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2

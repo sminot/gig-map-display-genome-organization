@@ -1,0 +1,61 @@
+{
+  "name": "gig-map-display-genome-organization",
+  "version": "2.0.0",
+  "description": "Interactive circular view of gene presence/absence across a pangenome. Runs as a standalone app and as an embeddable library.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sminot/gig-map-display-genome-organization.git"
+  },
+  "homepage": "https://sminot.github.io/gig-map-display-genome-organization/",
+  "type": "module",
+  "main": "./dist/gig-map-display.js",
+  "module": "./dist/gig-map-display.js",
+  "types": "./types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./dist/gig-map-display.js"
+    },
+    "./src": {
+      "types": "./types/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./style.css": "./style.css",
+    "./schema": "./schema/genome-display-config.schema.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "dist",
+    "types",
+    "schema",
+    "style.css",
+    "index.html",
+    "pangenome-loader.js",
+    "README.md",
+    "DESIGN.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "*.css",
+    "./src/standalone.js"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "prepare": "vite build",
+    "dev": "vite",
+    "serve": "python3 -m http.server 8123",
+    "test": "npm run test:unit && npm run test:browser",
+    "test:unit": "node --test test/unit/*.test.js",
+    "test:browser": "playwright test"
+  },
+  "dependencies": {
+    "d3": "^7.9.0",
+    "papaparse": "^5.4.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "vite": "^6.0.0"
+  }
+}
