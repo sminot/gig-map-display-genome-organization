@@ -56,6 +56,9 @@ const DATA_KINDS: FieldMeta['kind'][] = [
   'genomeSelect',
 ];
 
+// Show a type-to-filter box once an option list is longer than this.
+const FILTER_MIN = 8;
+
 function FieldControl({
   entry,
   form,
@@ -68,6 +71,7 @@ function FieldControl({
   const { name, meta } = entry;
   const [options, setOptions] = useState<Option[]>(meta.options ?? []);
   const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState('');
   const dependencyValue = meta.dependsOn ? form[meta.dependsOn] : undefined;
 
   const isDataKind = DATA_KINDS.includes(meta.kind);
@@ -114,6 +118,8 @@ function FieldControl({
         <input
           id={labelId}
           type="number"
+          autoComplete="off"
+          data-lpignore="true"
           min={meta.min}
           max={meta.max}
           step={meta.step ?? 'any'}
@@ -131,6 +137,8 @@ function FieldControl({
         <input
           id={labelId}
           type="text"
+          autoComplete="off"
+          data-lpignore="true"
           value={(form[name] as string) ?? ''}
           onChange={(e) => onField(name, e.target.value)}
         />
@@ -138,19 +146,39 @@ function FieldControl({
     );
   }
 
+  // A type-to-filter box, shown only for long lists.
+  const q = filter.trim().toLowerCase();
+  const filterBox =
+    options.length > FILTER_MIN ? (
+      <input
+        className="sf-filter"
+        type="text"
+        autoComplete="off"
+        data-lpignore="true"
+        placeholder="Filter…"
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        aria-label={`Filter ${meta.label}`}
+      />
+    ) : null;
+
   // Multi-select (bins / datasets sets).
   if (meta.multiple) {
     const selected = (form[name] as string[]) ?? [];
+    const shown = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
     return (
       <fieldset className="sf-field sf-multi" aria-labelledby={labelId}>
         <legend id={labelId} className="sf-label">
           {meta.label}
           {loading ? ' (loading…)' : ''}
         </legend>
+        {filterBox}
         {options.length === 0 && !loading ? (
           <span className="sf-empty">No options</span>
+        ) : shown.length === 0 ? (
+          <span className="sf-empty">No matches</span>
         ) : (
-          options.map((o) => (
+          shown.map((o) => (
             <label key={o.value} className="sf-check">
               <input
                 type="checkbox"
@@ -170,20 +198,22 @@ function FieldControl({
     );
   }
 
-  // Single-select (enum, statColumn, and single data-backed selects).
+  // Single-select (enum, statColumn, and single data-backed selects). Keep the
+  // current value in the list even when filtered out so the value stays visible.
+  const current = (form[name] as string) ?? '';
+  const shown = q
+    ? options.filter((o) => o.label.toLowerCase().includes(q) || o.value === current)
+    : options;
   return (
     <label className="sf-field" htmlFor={labelId}>
       <span className="sf-label">
         {meta.label}
         {loading ? ' (loading…)' : ''}
       </span>
-      <select
-        id={labelId}
-        value={(form[name] as string) ?? ''}
-        onChange={(e) => onField(name, e.target.value)}
-      >
+      {filterBox}
+      <select id={labelId} value={current} onChange={(e) => onField(name, e.target.value)}>
         <option value="">{meta.optional ? '(none)' : '(select…)'}</option>
-        {options.map((o) => (
+        {shown.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
           </option>

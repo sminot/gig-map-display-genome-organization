@@ -1,7 +1,7 @@
 import {
   defineParams,
   datasetMultiSelect,
-  statColumn,
+  enumSelect,
   bool,
   number,
 } from '../schema/fields';
@@ -11,7 +11,8 @@ import type { FigureModule } from './types';
 const params = defineParams({
   baseContrastIds: datasetMultiSelect('Base contrasts', 'contrast'),
   comparatorContrastIds: datasetMultiSelect('Comparator contrasts', 'contrast'),
-  stat: statColumn('Stat'),
+  // p/q-value are plotted as the signed -log10 transform; Estimate is the raw effect size.
+  value: enumSelect('Value', ['q-value', 'p-value', 'Estimate'], { default: 'q-value' }),
   fdr: bool('Recompute pooled FDR', { default: true }),
   sigThresh: number('Significance threshold', { min: 0, max: 1, step: 0.01, default: 0.05 }),
   estimateThresh: number('Estimate threshold', { step: 0.01, default: 0 }),

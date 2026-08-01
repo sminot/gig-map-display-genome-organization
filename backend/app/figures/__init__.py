@@ -12,11 +12,13 @@ from . import (
     phylogeny_vs_core,
     rarefaction,
     synteny_layout,
+    volcano,
 )
 
 ALL_FIGURES = [
     genome_organization.SPEC,
     compare_contrasts.SPEC,
+    volcano.SPEC,
     bin_to_genomes.SPEC,
     bin_set_heatmap.SPEC,
     synteny_layout.SPEC,

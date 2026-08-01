@@ -5,16 +5,23 @@ from gig_map_io.models.contrast_metagenomes_set import _add_sig_categories
 from pydantic import BaseModel
 from scipy import stats
 
-from ..datasets import CONTRAST_PARAMETER
 from ..registry import Context, FigureSpec
 
 SIG_LEVELS = ["<", "=", ">"]
 
 
+# The user picks a value type; p/q-value are plotted as the signed -log10 transform.
+_VALUE_COLUMN = {
+    "Estimate": "Estimate",
+    "p-value": "signed_log10_pvalue",
+    "q-value": "signed_log10_qvalue",
+}
+
+
 class Params(BaseModel):
     baseContrastIds: list[str]
     comparatorContrastIds: list[str]
-    stat: str = "signed_log10_qvalue"
+    value: str = "q-value"
     fdr: bool = True
     sigThresh: float = 0.2
     estimateThresh: float = 0.25
@@ -38,7 +45,14 @@ def _contrast_set(ctx: Context, id_by_organism: dict[str, str]) -> ContrastMetag
         organism: str(ctx.datasets.require(cid, "contrast").data_dir)
         for organism, cid in id_by_organism.items()
     }
-    return ContrastMetagenomesSet(dirs, CONTRAST_PARAMETER)
+    # A set shares one association parameter; infer it rather than assume "disease".
+    params = {ctx.datasets.contrast_parameter(cid) for cid in id_by_organism.values()}
+    if len(params) > 1:
+        raise ValueError(
+            f"selected contrasts test different parameters ({', '.join(sorted(params))}); "
+            "choose contrasts that share one"
+        )
+    return ContrastMetagenomesSet(dirs, params.pop())
 
 
 def _chi2_and_categories(merged, fdr: bool, sig_thresh: float, estimate_thresh: float):
@@ -68,10 +82,12 @@ def run(params: Params, ctx: Context) -> dict:
     comp_set = _contrast_set(ctx, {m["organism"]: m["comparatorId"] for m in matches})
 
     merged = base_set.compare_association(comp_set)
-    stat = params.stat
-    self_col, comp_col = f"{stat}_self", f"{stat}_comparitor"
+    col = _VALUE_COLUMN.get(params.value)
+    if col is None:
+        raise ValueError(f"unknown value '{params.value}'; choose one of {sorted(_VALUE_COLUMN)}")
+    self_col, comp_col = f"{col}_self", f"{col}_comparitor"
     if self_col not in merged.columns:
-        raise ValueError(f"stat '{stat}' not available in association results")
+        raise ValueError(f"'{params.value}' not available in association results")
 
     chi2_result, categories = _chi2_and_categories(
         merged, params.fdr, params.sigThresh, params.estimateThresh

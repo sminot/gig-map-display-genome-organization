@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { tableFromJSON } from 'apache-arrow';
+import { ChartTableToggle, type ChartTableView } from './ChartTableToggle';
 import type { RendererProps } from '../../figures/types';
 import { useRegisterExport } from '../../session/exports';
 import { registerArrow, type VG } from './mosaicClient';
@@ -20,7 +21,7 @@ function significance(r: Row): string {
 export function EnrichedTermsRenderer({ result }: RendererProps) {
   const table = result.kind === 'arrow' ? result.table : null;
   const records = useMemo(() => (table ? arrowToRecords(table) : []), [table]);
-  const [view, setView] = useState<'chart' | 'table'>('chart');
+  const [view, setView] = useState<ChartTableView>('chart');
 
   useRegisterExport(
     {
@@ -63,14 +64,7 @@ export function EnrichedTermsRenderer({ result }: RendererProps) {
 
   return (
     <div className="mosaic-view">
-      <div className="mosaic-toolbar">
-        <button type="button" className={view === 'chart' ? 'active' : ''} onClick={() => setView('chart')}>
-          Chart
-        </button>
-        <button type="button" className={view === 'table' ? 'active' : ''} onClick={() => setView('table')}>
-          Table
-        </button>
-      </div>
+      <ChartTableToggle value={view} onChange={setView} />
       {view === 'chart' ? (
         <MosaicChart build={build} deps={[records]} />
       ) : (

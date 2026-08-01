@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { CSSProperties } from 'react';
 import { tableFromJSON } from 'apache-arrow';
 import type { RendererProps } from '../../figures/types';
 import { runFunctionMeta } from '../../api/client';
 import { useRegisterExport } from '../../session/exports';
 import { registerArrow, type VG } from './mosaicClient';
 import { MosaicChart } from './MosaicChart';
+import { BinSelectorList, SELECT_STROKE } from './BinSelectorList';
 import { arrowToRecords, orderDomain, recordsToCsv } from './dataShaping';
 
 const TABLE = 'bin_set_heatmap';
 const HIGHLIGHT = 'bin_set_heatmap_sel';
-const SELECT_STROKE = '#f59e0b';
 
 interface ClusterOrder {
   binOrder: string[];
@@ -104,41 +103,8 @@ export function BinSetHeatmapRenderer({ params, result, selectedBin, onSelectBin
 
   return (
     <div className="mosaic-view">
-      <div style={binListStyle} role="listbox" aria-label="Select a bin">
-        {binList.map((bin) => (
-          <button
-            key={bin}
-            type="button"
-            role="option"
-            aria-selected={bin === selectedBin}
-            style={binButtonStyle(bin === selectedBin)}
-            onClick={() => onSelectBin?.(bin === selectedBin ? null : bin)}
-          >
-            {bin}
-          </button>
-        ))}
-      </div>
+      <BinSelectorList bins={binList} selectedBin={selectedBin} onSelectBin={onSelectBin} />
       <MosaicChart build={build} deps={[records, order, selectedBin]} />
     </div>
   );
-}
-
-const binListStyle: CSSProperties = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: 4,
-  maxHeight: 96,
-  overflowY: 'auto',
-};
-
-function binButtonStyle(selected: boolean): CSSProperties {
-  return {
-    border: `1px solid ${selected ? SELECT_STROKE : 'var(--border)'}`,
-    background: selected ? SELECT_STROKE : 'var(--panel)',
-    color: selected ? '#1a1d24' : 'var(--text)',
-    borderRadius: 4,
-    padding: '2px 8px',
-    fontSize: '0.8rem',
-    cursor: 'pointer',
-  };
 }

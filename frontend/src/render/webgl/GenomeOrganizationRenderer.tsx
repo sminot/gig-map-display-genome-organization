@@ -11,11 +11,13 @@ import {
   buildRequestBody,
   computeBaseLayout,
   computeWedgeLayout,
+  ordinalColor,
   wedgeGenomeRingBounds,
   wedgeOuterTrackBounds,
   type BaseLayout,
   type RenderData,
   type ReferenceGene,
+  type Rgba,
   type WedgeLayout,
 } from './renderData';
 
@@ -96,7 +98,9 @@ interface Zoom {
   displayRadiusScale: number;
   wedgeSpan: number;
   wedgeGap: number;
-  wedgeHeightScale: number;
+  // Outer wedge arc's share of the plot radius; the inner base circle gets the
+  // rest, so this sets the inner:outer radial size ratio.
+  wedgeFraction: number;
   isHovering: boolean;
   targetFocus: number;
   targetZoom: number;
@@ -110,7 +114,7 @@ function createZoom(): Zoom {
     displayRadiusScale: 1,
     wedgeSpan: 1 / 3,
     wedgeGap: 6,
-    wedgeHeightScale: 2.0,
+    wedgeFraction: 0.3,
     isHovering: false,
     targetFocus: 0,
     targetZoom: 1,
@@ -259,6 +263,7 @@ export function GenomeOrganizationRenderer({ params, result, selectedBin, onSele
   const [status, setStatus] = useState<string | null>('Loading…');
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [caption, setCaption] = useState<string>('');
+  const [highlightLegend, setHighlightLegend] = useState<{ bin: string; color: string }[]>([]);
 
   // GL setup + render loop + interaction — created once for the canvas.
   useEffect(() => {
@@ -367,7 +372,7 @@ export function GenomeOrganizationRenderer({ params, result, selectedBin, onSele
       const R = Math.min(cx, cy);
 
       if (z.zoomLevel > 1.05) {
-        const wedgeFraction = Math.min(0.8, 0.15 * z.wedgeHeightScale);
+        const wedgeFraction = Math.min(0.8, z.wedgeFraction);
         const targetOuter = R * 0.97 * (1 - wedgeFraction);
         z.targetScale = Math.max(0.1, Math.min(1.0, targetOuter / (R * 0.92)));
       } else {
@@ -383,8 +388,13 @@ export function GenomeOrganizationRenderer({ params, result, selectedBin, onSele
       }
 
       const hasOuterTrack = !!s.rd.overlayByBin && s.rd.overlayChannel === 'outerTrack';
+      const hasHighlightTrack = s.rd.highlightBins.length > 0;
       const nGenomes = s.rd.visibleGenomes.length;
-      const base = computeBaseLayout(w, h, nGenomes, { scale: z.displayRadiusScale, hasOuterTrack });
+      const base = computeBaseLayout(w, h, nGenomes, {
+        scale: z.displayRadiusScale,
+        hasOuterTrack,
+        hasHighlightTrack,
+      });
       const wedge = computeWedgeLayout(w, h, nGenomes, {
         scale: z.displayRadiusScale,
         wedgeGap: z.wedgeGap,
@@ -692,6 +702,9 @@ export function GenomeOrganizationRenderer({ params, result, selectedBin, onSele
       setCaption(
         `ref: ${rd.reference} · ${rd.visibleGenomes.length} genomes · color: ${rd.colorBy}${overlayNote} · scroll to zoom`,
       );
+      setHighlightLegend(
+        rd.highlightBins.map((bin) => ({ bin, color: rgbaCss(ordinalColor(rd.binIndex.get(bin) ?? -1)) })),
+      );
       setStatus(rd.referenceGenes.size === 0 ? 'No reference-genome alignments to plot.' : null);
     })().catch((err) => {
       if (!cancelled) setStatus(err instanceof Error ? err.message : String(err));
@@ -700,6 +713,17 @@ export function GenomeOrganizationRenderer({ params, result, selectedBin, onSele
       cancelled = true;
     };
   }, [result, params]);
+
+  // Zoomed-wedge geometry from params: angular width (fraction of the full
+  // circle) and radial height (fraction of the plot radius, i.e. inner:outer ratio).
+  useEffect(() => {
+    const s = sceneRef.current;
+    if (!s) return;
+    const width = typeof params.sliceWidth === 'number' ? params.sliceWidth : NaN;
+    if (Number.isFinite(width) && width > 0) s.zoom.wedgeSpan = width;
+    const height = typeof params.sliceHeight === 'number' ? params.sliceHeight : NaN;
+    if (Number.isFinite(height) && height > 0) s.zoom.wedgeFraction = height;
+  }, [params]);
 
   // Push the selected bin into the render loop so the next frame rebuilds the
   // arc buffers with the non-selected bins dimmed.
@@ -735,6 +759,16 @@ export function GenomeOrganizationRenderer({ params, result, selectedBin, onSele
           {caption}
         </div>
       )}
+      {highlightLegend.length > 0 && (
+        <div style={legendStyle}>
+          {highlightLegend.map(({ bin, color }) => (
+            <div key={bin} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 12, height: 12, background: color, borderRadius: 2, flex: '0 0 auto' }} />
+              <span>{bin}</span>
+            </div>
+          ))}
+        </div>
+      )}
       {status && (
         <div className="webgl-status" style={statusStyle} role="status">
           {status}
@@ -745,12 +779,27 @@ export function GenomeOrganizationRenderer({ params, result, selectedBin, onSele
   );
 }
 
+function rgbaCss(c: Rgba): string {
+  return `rgba(${Math.round(c[0] * 255)}, ${Math.round(c[1] * 255)}, ${Math.round(c[2] * 255)}, ${c[3]})`;
+}
+
 const captionStyle: React.CSSProperties = {
   position: 'absolute',
   top: 8,
   left: 8,
   fontSize: 12,
   opacity: 0.75,
+  pointerEvents: 'none',
+};
+
+const legendStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 32,
+  left: 8,
+  fontSize: 12,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
   pointerEvents: 'none',
 };
 

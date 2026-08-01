@@ -4,6 +4,7 @@ import type { GenomeOrganizationMeta } from '../../api/client';
 import {
   ARC_STRIDE,
   angleFor,
+  arcChunks,
   arrowToAlignmentRows,
   baseGenomeRingBounds,
   buildArcInstances,
@@ -91,6 +92,22 @@ describe('buildRenderData', () => {
     expect(rd.genomeGenes.has('gA')).toBe(false);
     expect(rd.genomeGenes.get('gB')!.get('g1')!.pident).toBe(95);
     expect(rd.genomeGenes.get('gC')!.has('g2')).toBe(false);
+  });
+
+  it('orders non-reference genomes by similarity to the reference', () => {
+    // gB shares g1+g2 with the reference; gC shares only g1, so gB ranks first.
+    const rd = buildRenderData(rows, meta, { referenceGenome: 'gA' });
+    expect(rd.visibleGenomes).toEqual(['gB', 'gC']);
+  });
+
+  it('caps the ring count at maxGenomes, keeping the closest genomes', () => {
+    const rd = buildRenderData(rows, meta, { referenceGenome: 'gA', maxGenomes: 1 });
+    expect(rd.visibleGenomes).toEqual(['gB']);
+  });
+
+  it('keeps only highlightBins that exist in the pangenome', () => {
+    const rd = buildRenderData(rows, meta, { referenceGenome: 'gA', highlightBins: ['Bin 1', 'nope'] });
+    expect(rd.highlightBins).toEqual(['Bin 1']);
   });
 
   it('defaults the reference to the first meta genome and colorBy to genome', () => {
@@ -201,12 +218,18 @@ describe('buildArcInstances', () => {
   const base = computeBaseLayout(800, 800, rd.visibleGenomes.length);
   const wedge = computeWedgeLayout(800, 800, rd.visibleGenomes.length);
 
+  // Wide arcs are split into <= MAX_ARC_SPAN chunks, so instance counts are the
+  // per-arc chunk counts summed. The one reference contig spans the full circle
+  // minus a 1.5° gap; each drawn gene (g1, g2) spans half the circle (π).
+  const refRingChunks = arcChunks(angleFor(1000, 1000) - (1.5 * Math.PI) / 180);
+  const geneChunks = arcChunks(Math.PI);
+
   it('emits reference-ring + genome-ring arcs and drops reverse-strand genes', () => {
     const buf = buildArcInstances(rd, base, wedge, 'base');
     expect(buf.length % ARC_STRIDE).toBe(0);
     const instances = buf.length / ARC_STRIDE;
-    // 1 reference contig arc + gB{g1,g2} + gC{g1} = 4 arcs. gRev is reverse-strand.
-    expect(instances).toBe(4);
+    // reference contig ring + gB{g1,g2} + gC{g1}. gRev is reverse-strand (dropped).
+    expect(instances).toBe(refRingChunks + 3 * geneChunks);
     // No emitted arc has endAngle <= startAngle.
     for (let i = 0; i < instances; i++) {
       const geoStart = buf[i * ARC_STRIDE];
@@ -218,7 +241,27 @@ describe('buildArcInstances', () => {
   it('omits the reference ring in wedge mode', () => {
     const wedgeBuf = buildArcInstances(rd, base, wedge, 'wedge');
     // gB{g1,g2} + gC{g1} = 3 genome arcs, no reference contig arc.
-    expect(wedgeBuf.length / ARC_STRIDE).toBe(3);
+    expect(wedgeBuf.length / ARC_STRIDE).toBe(3 * geneChunks);
+  });
+
+  it('draws a highlight track for selected bins and dims the rest', () => {
+    const rdHl = buildRenderData(rows, meta, { referenceGenome: 'gA', highlightBins: ['Bin 1'] });
+    const b = computeBaseLayout(800, 800, rdHl.visibleGenomes.length, { hasHighlightTrack: true });
+    const buf = buildArcInstances(rdHl, b, wedge, 'base');
+
+    // The highlight track sits at its own radial band; g1 (Bin 1) is the only
+    // highlighted reference gene, split into geneChunks arcs.
+    let trackArcs = 0;
+    let dimmedGenomeArcs = 0;
+    for (let i = 0; i < buf.length; i += ARC_STRIDE) {
+      const rInner = buf[i + 2];
+      const alpha = buf[i + 7];
+      if (Math.abs(rInner - b.highlightTrackInner) < 1e-6) trackArcs += 1;
+      // Genome-ring arc for a non-highlighted bin (gB/gC g2 etc.) is dimmed.
+      if (rInner < b.genomeRingStart && alpha < 1) dimmedGenomeArcs += 1;
+    }
+    expect(trackArcs).toBe(geneChunks);
+    expect(dimmedGenomeArcs).toBeGreaterThan(0);
   });
 
   it('adds an outer-track arc per gene with a bin stat when overlay=outerTrack', () => {
@@ -230,8 +273,8 @@ describe('buildArcInstances', () => {
     const b = computeBaseLayout(800, 800, rdOverlay.visibleGenomes.length, { hasOuterTrack: true });
     const w = computeWedgeLayout(800, 800, rdOverlay.visibleGenomes.length, { hasOuterTrack: true });
     const buf = buildArcInstances(rdOverlay, b, w, 'base');
-    // 4 base arcs as before + one outer-track arc for each forward reference gene
-    // that has a bin stat (g1 -> Bin 1, g2 -> Bin 2) = 6.
-    expect(buf.length / ARC_STRIDE).toBe(6);
+    // Base arcs as before + one outer-track arc for each forward reference gene
+    // with a bin stat (g1 -> Bin 1, g2 -> Bin 2).
+    expect(buf.length / ARC_STRIDE).toBe(refRingChunks + 3 * geneChunks + 2 * geneChunks);
   });
 });

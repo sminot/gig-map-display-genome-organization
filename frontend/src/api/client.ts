@@ -46,6 +46,17 @@ export interface OutputDir {
   exists: boolean;
 }
 
+export interface DirEntry {
+  name: string;
+  path: string;
+}
+
+export interface BrowseResult {
+  path: string;
+  parent: string | null;
+  dirs: DirEntry[];
+}
+
 // A saved figure: fully described by { figureType, params } plus the rendered
 // image(s). Round-trips through save/load with no per-figure-type handling.
 export interface FigureRecord {
@@ -226,6 +237,11 @@ export async function setOutputDir(path: string): Promise<OutputDir> {
     }),
   );
   return (await res.json()) as OutputDir;
+}
+
+export async function browseDir(path?: string): Promise<BrowseResult> {
+  const q = path ? `?path=${encodeURIComponent(path)}` : '';
+  return getJson<BrowseResult>(`/browse${q}`);
 }
 
 export async function listFigures(): Promise<FigureRecord[]> {

@@ -125,7 +125,10 @@ def _invoke(function_id: str, params: dict):
         model = spec.model(**params)
     except Exception as exc:  # pydantic validation error at the request boundary
         raise HTTPException(status_code=422, detail=str(exc))
-    return spec.handler(model, ctx)
+    try:
+        return spec.handler(model, ctx)
+    except ValueError as exc:  # invalid-but-well-formed input (bad bin, mixed params, …)
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.post("/api/run/{function_id}")
@@ -167,6 +170,16 @@ def put_output_dir(payload: dict = Body(...)):
         raise HTTPException(status_code=422, detail="path must be a non-empty string")
     resolved = output_dir.set_output_dir(path.strip())
     return json_response({"path": resolved, "exists": os.path.isdir(resolved)})
+
+
+@app.get("/api/browse")
+def browse_dir(path: str | None = Query(default=None)):
+    try:
+        return json_response(output_dir.browse(path))
+    except (FileNotFoundError, NotADirectoryError):
+        raise HTTPException(status_code=404, detail="not a directory")
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="permission denied")
 
 
 @app.get("/api/figures")

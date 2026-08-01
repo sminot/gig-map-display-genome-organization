@@ -1,4 +1,4 @@
-import { defineParams, datasetSelect, genomeSelect, enumSelect, statColumn } from '../schema/fields';
+import { defineParams, datasetSelect, genomeSelect, enumSelect, statColumn, number, binMultiSelect } from '../schema/fields';
 import { GenomeOrganizationRenderer } from '../render/webgl/GenomeOrganizationRenderer';
 import { buildRequestBody } from '../render/webgl/renderData';
 import type { FigureModule } from './types';
@@ -10,7 +10,11 @@ import type { FigureModule } from './types';
 const params = defineParams({
   pangenomeId: datasetSelect('Pangenome', 'pangenome'),
   referenceGenome: genomeSelect('Reference genome', { dependsOn: 'pangenomeId', optional: true }),
+  maxGenomes: number('Max genomes displayed', { default: 50, min: 1, step: 1 }),
+  sliceWidth: number('Slice width (fraction of circle)', { default: 1 / 3, min: 0.05, max: 0.9, step: 0.05 }),
+  sliceHeight: number('Slice height (fraction of radius)', { default: 0.3, min: 0.1, max: 0.8, step: 0.05 }),
   colorBy: enumSelect('Color by', ['bin', 'pident', 'coverage', 'genome'], { optional: true }),
+  highlightBins: binMultiSelect('Highlight bins', { dependsOn: 'pangenomeId', optional: true }),
   overlayContrastId: datasetSelect('Overlay contrast', 'contrast', { optional: true }),
   overlayStat: statColumn('Overlay stat', { optional: true }),
   overlayChannel: enumSelect('Overlay channel', ['arcColor', 'outerTrack'], { optional: true }),

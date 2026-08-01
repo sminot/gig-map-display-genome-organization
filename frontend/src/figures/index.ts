@@ -40,6 +40,7 @@
 import type { FigureModule } from './types';
 import { genomeOrganization } from './genomeOrganization';
 import { compareContrasts } from './compareContrasts';
+import { volcano } from './volcano';
 import { binClassifier } from './binClassifier';
 import { binToGenomes } from './binToGenomes';
 import { binSetHeatmap } from './binSetHeatmap';
@@ -54,6 +55,7 @@ export type { FigureModule, RendererProps, Renderer, RendererFamily } from './ty
 export const figureModules: FigureModule[] = [
   genomeOrganization,
   compareContrasts,
+  volcano,
   binClassifier,
   binToGenomes,
   binSetHeatmap,

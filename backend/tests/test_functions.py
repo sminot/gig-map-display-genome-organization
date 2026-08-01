@@ -113,6 +113,14 @@ def test_compare_contrasts_json(client, ids):
     assert len(result["categories"]["matrix"]) == 3
     assert len(result["scatter"]) > 0
     assert set(result["scatter"][0]) == {"organism", "feature", "base", "comparator"}
+    # value maps to the plotted column: q-value/p-value use signed -log10, Estimate is raw.
+    for v in ("p-value", "Estimate"):
+        r = client.post(
+            "/api/run/compare_contrasts",
+            json={"baseContrastIds": [base], "comparatorContrastIds": [comparator], "value": v},
+        )
+        assert r.status_code == 200
+        assert len(r.json()["scatter"]) > 0
 
 
 def test_csv_export(client, ids):
@@ -128,7 +136,8 @@ def test_csv_export(client, ids):
 
 def test_bonus_rarefaction_and_histogram(client, ids):
     pid = ids["pangenome"][0]
-    rf = read_arrow(client.post("/api/run/rarefaction", json={"pangenomeId": pid, "nReps": 3}).content)
+    rf = read_arrow(client.post("/api/run/rarefaction", json={"pangenomeIds": [pid], "nReps": 3}).content)
     assert len(rf) == 29
+    assert "pangenome" in rf.columns
     hist = read_arrow(client.post("/api/run/bin_size_histogram", json={"pangenomeId": pid}).content)
     assert len(hist) > 0

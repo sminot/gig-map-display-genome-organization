@@ -10,6 +10,10 @@ import type { GenomeOrganizationMeta } from '../../api/client';
 
 const TWO_PI = 2 * Math.PI;
 
+// Cap on non-reference rings rendered when the `maxGenomes` param is unset, to
+// keep the browser from drawing every genome in a large pangenome at once.
+const DEFAULT_MAX_GENOMES = 50;
+
 export type Rgba = [number, number, number, number];
 
 export interface AlignmentRow {
@@ -64,6 +68,8 @@ export interface RenderData {
   colorBy: ColorBy;
   binIndex: Map<string, number>;
   genomeIndex: Map<string, number>;
+  /** bins to emphasize: drawn on a dedicated track and kept undimmed. */
+  highlightBins: string[];
   overlayByBin?: Map<string, number>;
   overlayChannel?: 'arcColor' | 'outerTrack';
   /** max |stat| across overlaid bins, for centering the diverging scale. */
@@ -77,9 +83,19 @@ export interface RenderData {
 // (it drops every other genome, which would leave no rings). So the reference
 // is applied client-side only and is NOT sent on the wire; the flat overlay*
 // fields are folded into `overlay` (omitted entirely when no contrast is set).
+// `maxGenomes`, `sliceWidth`, and `sliceHeight` are also client-side only:
+// `maxGenomes` caps how many rings are rendered (applied in buildRenderData after
+// sorting by reference similarity); `sliceWidth` sets the zoomed wedge's angular
+// span and `sliceHeight` its radial (inner:outer) size ratio in the renderer.
+// `highlightBins` selects bins to emphasize on a dedicated track — bin membership
+// is already in the alignment rows, so it too is applied client-side.
 export function buildRequestBody(params: Record<string, unknown>): Record<string, unknown> {
   const {
     referenceGenome: _referenceGenome,
+    maxGenomes: _maxGenomes,
+    sliceWidth: _sliceWidth,
+    sliceHeight: _sliceHeight,
+    highlightBins: _highlightBins,
     overlayContrastId,
     overlayStat,
     overlayChannel,
@@ -212,9 +228,46 @@ export function buildRenderData(
     }
   }
 
-  const visibleGenomes = meta.genomes.filter((g) => g !== reference).sort();
+  // Order non-reference genomes by similarity to the reference (shared reference
+  // genes first, then mean identity over those shared genes), then keep only the
+  // closest `maxGenomes` so the ring count stays bounded regardless of pangenome
+  // size. Similarity uses genomeGenes/referenceGenes already built above.
+  const maxGenomes =
+    typeof params.maxGenomes === 'number' && params.maxGenomes > 0
+      ? Math.floor(params.maxGenomes)
+      : DEFAULT_MAX_GENOMES;
+  const similarity = (genome: string): { shared: number; meanPident: number } => {
+    const hits = genomeGenes.get(genome);
+    if (!hits) return { shared: 0, meanPident: 0 };
+    let shared = 0;
+    let pidentSum = 0;
+    for (const gene of referenceGenes.keys()) {
+      const hit = hits.get(gene);
+      if (hit) {
+        shared += 1;
+        pidentSum += hit.pident;
+      }
+    }
+    return { shared, meanPident: shared > 0 ? pidentSum / shared : 0 };
+  };
+  const scoreByGenome = new Map(
+    meta.genomes.filter((g) => g !== reference).map((g) => [g, similarity(g)]),
+  );
+  const visibleGenomes = [...scoreByGenome.keys()]
+    .sort((a, b) => {
+      const sa = scoreByGenome.get(a)!;
+      const sb = scoreByGenome.get(b)!;
+      return sb.shared - sa.shared || sb.meanPident - sa.meanPident || a.localeCompare(b);
+    })
+    .slice(0, maxGenomes);
   const genomeIndex = new Map(visibleGenomes.map((g, i) => [g, i]));
   const binIndex = new Map(meta.bins.map((b, i) => [b, i]));
+
+  const highlightBins = Array.isArray(params.highlightBins)
+    ? (params.highlightBins as unknown[]).filter(
+        (b): b is string => typeof b === 'string' && binIndex.has(b),
+      )
+    : [];
 
   const colorByRaw = typeof params.colorBy === 'string' ? params.colorBy : '';
   const colorBy: ColorBy =
@@ -239,6 +292,7 @@ export function buildRenderData(
     colorBy,
     binIndex,
     genomeIndex,
+    highlightBins,
     overlayByBin,
     overlayChannel: meta.overlayChannel,
     overlayAbsMax,
@@ -258,22 +312,28 @@ export interface BaseLayout {
   genomeRingStart: number;
   geneRingWidth: number;
   hasOuterTrack: boolean;
+  hasHighlightTrack: boolean;
+  highlightTrackInner: number;
+  highlightTrackOuter: number;
 }
 
 const REFERENCE_RING_WIDTH = 18;
 const OUTER_TRACK_GAP = 4;
 const OUTER_TRACK_WIDTH = 20;
 const MAX_GENE_RING_WIDTH = 20;
+const HIGHLIGHT_TRACK_GAP = 3;
+const HIGHLIGHT_TRACK_WIDTH = 10;
 
 // Base (unzoomed) full-circle layout — ported from genome-viz.js drawVisualization.
 export function computeBaseLayout(
   canvasW: number,
   canvasH: number,
   numGenomes: number,
-  opts: { scale?: number; hasOuterTrack?: boolean } = {},
+  opts: { scale?: number; hasOuterTrack?: boolean; hasHighlightTrack?: boolean } = {},
 ): BaseLayout {
   const scale = opts.scale ?? 1;
   const hasOuterTrack = !!opts.hasOuterTrack;
+  const hasHighlightTrack = !!opts.hasHighlightTrack;
   const cx = canvasW / 2;
   const cy = canvasH / 2;
   const outerRadius = Math.min(cx, cy) * 0.92 * scale;
@@ -281,8 +341,13 @@ export function computeBaseLayout(
   const referenceRingInner = outerRadius - REFERENCE_RING_WIDTH;
   const outerTrackInner = hasOuterTrack ? referenceRingOuter + OUTER_TRACK_GAP : referenceRingOuter;
   const outerTrackOuter = hasOuterTrack ? outerTrackInner + OUTER_TRACK_WIDTH : referenceRingOuter;
+  // Dedicated highlight track sits just inside the reference ring; the genome
+  // rings start below it, so it costs a sliver of ring space when active.
+  const highlightTrackOuter = hasHighlightTrack ? referenceRingInner - HIGHLIGHT_TRACK_GAP : referenceRingInner;
+  const highlightTrackInner = hasHighlightTrack ? highlightTrackOuter - HIGHLIGHT_TRACK_WIDTH : referenceRingInner;
+  const genomeRingStart = hasHighlightTrack ? highlightTrackInner - HIGHLIGHT_TRACK_GAP : referenceRingInner;
   const n = Math.max(1, numGenomes);
-  const geneRingWidth = Math.min((outerRadius - REFERENCE_RING_WIDTH - 20) / n, MAX_GENE_RING_WIDTH);
+  const geneRingWidth = Math.min((genomeRingStart - 20) / n, MAX_GENE_RING_WIDTH);
   return {
     cx,
     cy,
@@ -291,9 +356,12 @@ export function computeBaseLayout(
     referenceRingOuter,
     outerTrackInner,
     outerTrackOuter,
-    genomeRingStart: referenceRingInner,
+    genomeRingStart,
     geneRingWidth,
     hasOuterTrack,
+    hasHighlightTrack,
+    highlightTrackInner,
+    highlightTrackOuter,
   };
 }
 
@@ -454,6 +522,17 @@ export function arcColorFor(rd: RenderData, gene: ReferenceGene, genome: string,
 
 export const ARC_STRIDE = 8;
 
+// The shader tessellates every arc into a fixed NUM_SEGS (16) straight segments
+// regardless of angular span, so a wide arc — notably the near-full-circle
+// reference contig ring — renders as a visible polygon. Splitting any arc into
+// pieces no wider than this keeps the segment density high enough to read as a
+// smooth curve (a full circle becomes ~2π / (π/8) * 16 ≈ 256 segments).
+export const MAX_ARC_SPAN = Math.PI / 8;
+
+export function arcChunks(span: number): number {
+  return Math.max(1, Math.ceil(span / MAX_ARC_SPAN));
+}
+
 interface ArcSink {
   push(geoStart: number, geoEnd: number, rInner: number, rOuter: number, color: Rgba): void;
 }
@@ -468,9 +547,10 @@ function ringBoundsFor(
 }
 
 // Builds the arc instances for one layer. Base mode also draws the reference
-// contig ring; both modes draw genome rings and (when overlay=outerTrack) an
-// outer heat ring keyed by each gene's bin stat. When `selectedBin` is set,
-// arcs whose gene belongs to another bin are drawn dimmed so the selection reads.
+// contig ring and, when bins are highlighted, a dedicated highlight track; both
+// modes draw genome rings and (when overlay=outerTrack) an outer heat ring keyed
+// by each gene's bin stat. Arcs outside the active emphasis (a clicked
+// `selectedBin` and/or the highlighted bins) are drawn dimmed so it stands out.
 export function buildArcInstances(
   rd: RenderData,
   base: BaseLayout,
@@ -482,9 +562,21 @@ export function buildArcInstances(
   const sink: ArcSink = {
     push(geoStart, geoEnd, rInner, rOuter, color) {
       if (geoEnd <= geoStart) return;
-      values.push(geoStart, geoEnd, rInner, rOuter, color[0], color[1], color[2], color[3]);
+      const chunks = arcChunks(geoEnd - geoStart);
+      const step = (geoEnd - geoStart) / chunks;
+      for (let k = 0; k < chunks; k++) {
+        const s = geoStart + k * step;
+        const e = k === chunks - 1 ? geoEnd : geoStart + (k + 1) * step;
+        values.push(s, e, rInner, rOuter, color[0], color[1], color[2], color[3]);
+      }
     },
   };
+
+  // An arc is dimmed when it falls outside the active emphasis: a clicked bin
+  // and/or the form's highlighted bins. With neither active, nothing is dimmed.
+  const highlightSet = new Set(rd.highlightBins);
+  const isDimmed = (bin: string): boolean =>
+    (!!selectedBin && bin !== selectedBin) || (highlightSet.size > 0 && !highlightSet.has(bin));
 
   // Reference contig ring (base layer only), one arc per contig with a small gap.
   if (mode === 'base') {
@@ -493,6 +585,21 @@ export function buildArcInstances(
       const start = angleFor(c.cumStart, rd.totalLength);
       const end = angleFor(c.cumStart + c.len, rd.totalLength) - gap;
       sink.push(start, end, base.referenceRingInner, base.referenceRingOuter, REFERENCE_RING_COLOR);
+    }
+  }
+
+  // Dedicated highlight track (base layer only): each highlighted bin's reference
+  // genes drawn in that bin's color, so the selected bins read at a glance.
+  if (mode === 'base' && base.hasHighlightTrack && highlightSet.size > 0) {
+    for (const gene of rd.referenceGenes.values()) {
+      if (!highlightSet.has(gene.bin)) continue;
+      sink.push(
+        gene.startAngle,
+        gene.endAngle,
+        base.highlightTrackInner,
+        base.highlightTrackOuter,
+        ordinalColor(rd.binIndex.get(gene.bin) ?? -1),
+      );
     }
   }
 
@@ -510,7 +617,7 @@ export function buildArcInstances(
         gene.endAngle,
         inner,
         outer,
-        selectedBin && gene.bin !== selectedBin ? dimmed(color) : color,
+        isDimmed(gene.bin) ? dimmed(color) : color,
       );
     }
   });
@@ -531,7 +638,7 @@ export function buildArcInstances(
           gene.endAngle,
           bounds.inner,
           bounds.outer,
-          selectedBin && gene.bin !== selectedBin ? dimmed(color) : color,
+          isDimmed(gene.bin) ? dimmed(color) : color,
         );
       }
     }

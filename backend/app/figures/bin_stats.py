@@ -28,6 +28,9 @@ def _coerce_group(contrast, metadata_col: str, value: str):
 
 def run(params: Params, ctx: Context) -> dict:
     contrast = ctx.datasets.contrast(params.contrastId)
+    if params.metadataCol not in contrast.metadata.columns:
+        available = ", ".join(map(str, contrast.metadata.columns))
+        raise ValueError(f"metadata column '{params.metadataCol}' not found; available: {available}")
     common = dict(
         metadata_col=params.metadataCol,
         ref_group=_coerce_group(contrast, params.metadataCol, params.refGroup),

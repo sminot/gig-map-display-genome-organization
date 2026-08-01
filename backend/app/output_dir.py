@@ -34,3 +34,25 @@ def set_output_dir(path: str) -> str:
 def current_output_path() -> Path | None:
     path = get_output_dir()
     return Path(path) if path is not None else None
+
+
+def browse(path: str | None) -> dict:
+    """List the immediate subdirectories of `path` for the folder picker.
+
+    Defaults to the current output folder (or the user's home) when no path is
+    given. Returns the resolved dir, its parent (None at the filesystem root),
+    and its child directories.
+    """
+    base = Path(path).expanduser() if path else (current_output_path() or Path.home())
+    base = base.resolve()
+    if not base.is_dir():
+        raise NotADirectoryError(str(base))
+    dirs = []
+    for entry in sorted(base.iterdir(), key=lambda p: p.name.lower()):
+        try:
+            if entry.is_dir():
+                dirs.append({"name": entry.name, "path": str(entry)})
+        except OSError:
+            continue  # unreadable entry (permissions, broken symlink) — skip
+    parent = str(base.parent) if base.parent != base else None
+    return {"path": str(base), "parent": parent, "dirs": dirs}

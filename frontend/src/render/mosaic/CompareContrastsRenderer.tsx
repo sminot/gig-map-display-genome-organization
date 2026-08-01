@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
-import type { CSSProperties } from 'react';
 import { tableFromJSON } from 'apache-arrow';
 import type { RendererProps } from '../../figures/types';
 import { useRegisterExport } from '../../session/exports';
 import { registerArrow, type VG } from './mosaicClient';
 import { MosaicChart } from './MosaicChart';
+import { BinSelectorList, SELECT_STROKE } from './BinSelectorList';
 import {
   categoryMatrixToCells,
   recordsToCsv,
@@ -14,9 +14,24 @@ import {
 } from './dataShaping';
 
 const SCATTER = 'compare_scatter';
-const DIAGONAL = 'compare_diagonal';
 const HIGHLIGHT = 'compare_scatter_sel';
-const SELECT_STROKE = '#f59e0b';
+const ORIGIN_STROKE = '#111827';
+const SIG_STROKE = '#d1495b';
+
+// p/q-value are plotted as signed -log10, so significance is |value| >= -log10(threshold)
+// (dashed lines both sides). Estimate is a raw effect size with no significance line.
+function significanceLines(value: string, threshold: number): number[] {
+  if (value !== 'p-value' && value !== 'q-value') return [];
+  if (!Number.isFinite(threshold) || threshold <= 0) return [];
+  const t = -Math.log10(threshold);
+  return [t, -t];
+}
+
+function axisLabel(value: string): string {
+  if (value === 'p-value') return 'signed −log10(p-value)';
+  if (value === 'q-value') return 'signed −log10(q-value)';
+  return 'Estimate';
+}
 
 interface CompareData {
   matches: { organism: string; baseId: string; comparatorId: string }[];
@@ -32,7 +47,7 @@ function formatStat(v: number | null): string {
 export function CompareContrastsRenderer({ params, result, selectedBin, onSelectBin }: RendererProps) {
   const data = result.kind === 'json' ? (result.data as CompareData) : null;
   const scatter = data?.scatter ?? [];
-  const stat = String(params.stat ?? 'stat');
+  const value = String(params.value ?? 'q-value');
 
   // Each scatter point's `feature` is a bin name; list them for click-to-select.
   const bins = useMemo(() => {
@@ -65,8 +80,13 @@ export function CompareContrastsRenderer({ params, result, selectedBin, onSelect
     [data],
   );
 
+  const sigLines = significanceLines(value, Number(params.sigThresh));
+
   const build = (vg: VG) => {
     const { min, max } = scatterExtent(scatter);
+    // Expand the (square) domain so the origin and any significance lines are in view.
+    const lo = Math.min(min, 0, ...sigLines);
+    const hi = Math.max(max, 0, ...sigLines);
     const scatterTable = tableFromJSON(
       scatter.map((p) => ({
         organism: String(p.organism),
@@ -75,15 +95,8 @@ export function CompareContrastsRenderer({ params, result, selectedBin, onSelect
         comparator: Number(p.comparator),
       })),
     );
-    const diagonalTable = tableFromJSON([
-      { x: min, y: min },
-      { x: max, y: max },
-    ]);
     const selPoints = selectedBin ? scatter.filter((p) => String(p.feature) === selectedBin) : [];
-    const registrations = [
-      registerArrow(SCATTER, scatterTable),
-      registerArrow(DIAGONAL, diagonalTable),
-    ];
+    const registrations = [registerArrow(SCATTER, scatterTable)];
     if (selPoints.length) {
       const selTable = tableFromJSON(
         selPoints.map((p) => ({ base: Number(p.base), comparator: Number(p.comparator) })),
@@ -92,7 +105,16 @@ export function CompareContrastsRenderer({ params, result, selectedBin, onSelect
     }
     return Promise.all(registrations).then(() => {
       const marks = [
-        vg.line(vg.from(DIAGONAL), { x: 'x', y: 'y', stroke: '#9aa2b1', strokeDasharray: '4,4' }),
+        // Black dashed cross through the origin (x=0, y=0).
+        vg.ruleX([0], { stroke: ORIGIN_STROKE, strokeDasharray: '5,4' }),
+        vg.ruleY([0], { stroke: ORIGIN_STROKE, strokeDasharray: '5,4' }),
+      ];
+      // Red dashed significance thresholds on both axes, when the stat has one.
+      if (sigLines.length) {
+        marks.push(vg.ruleX(sigLines, { stroke: SIG_STROKE, strokeDasharray: '6,4' }));
+        marks.push(vg.ruleY(sigLines, { stroke: SIG_STROKE, strokeDasharray: '6,4' }));
+      }
+      marks.push(
         vg.dot(vg.from(SCATTER), {
           x: 'base',
           y: 'comparator',
@@ -100,7 +122,7 @@ export function CompareContrastsRenderer({ params, result, selectedBin, onSelect
           r: 3,
           fillOpacity: 0.7,
         }),
-      ];
+      );
       if (selPoints.length) {
         // Ringed marker over the selected bin's point(s).
         marks.push(
@@ -117,10 +139,10 @@ export function CompareContrastsRenderer({ params, result, selectedBin, onSelect
       return vg.plot(
         ...marks,
         vg.colorLegend({ label: 'organism' }),
-        vg.xDomain([min, max]),
-        vg.yDomain([min, max]),
-        vg.xLabel(`${stat} (base)`),
-        vg.yLabel(`${stat} (comparator)`),
+        vg.xDomain([lo, hi]),
+        vg.yDomain([lo, hi]),
+        vg.xLabel(`${axisLabel(value)} (base)`),
+        vg.yLabel(`${axisLabel(value)} (comparator)`),
         vg.width(520),
         vg.height(520),
       );
@@ -131,24 +153,16 @@ export function CompareContrastsRenderer({ params, result, selectedBin, onSelect
 
   return (
     <div className="mosaic-view compare-contrasts">
-      <MosaicChart build={build} deps={[data, selectedBin]} />
+      <MosaicChart build={build} deps={[data, selectedBin, value, params.sigThresh]} />
       <div className="compare-stats">
         <section>
           <h4>Bins</h4>
-          <div style={binListStyle} role="listbox" aria-label="Select a bin">
-            {bins.map((bin) => (
-              <button
-                key={bin}
-                type="button"
-                role="option"
-                aria-selected={bin === selectedBin}
-                style={binButtonStyle(bin === selectedBin)}
-                onClick={() => onSelectBin?.(bin === selectedBin ? null : bin)}
-              >
-                {bin}
-              </button>
-            ))}
-          </div>
+          <BinSelectorList
+            bins={bins}
+            selectedBin={selectedBin}
+            onSelectBin={onSelectBin}
+            maxHeight={120}
+          />
         </section>
         <section>
           <h4>Matched pairs</h4>
@@ -205,24 +219,4 @@ export function CompareContrastsRenderer({ params, result, selectedBin, onSelect
       </div>
     </div>
   );
-}
-
-const binListStyle: CSSProperties = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: 4,
-  maxHeight: 120,
-  overflowY: 'auto',
-};
-
-function binButtonStyle(selected: boolean): CSSProperties {
-  return {
-    border: `1px solid ${selected ? SELECT_STROKE : 'var(--border)'}`,
-    background: selected ? SELECT_STROKE : 'var(--panel)',
-    color: selected ? '#1a1d24' : 'var(--text)',
-    borderRadius: 4,
-    padding: '2px 8px',
-    fontSize: '0.8rem',
-    cursor: 'pointer',
-  };
 }

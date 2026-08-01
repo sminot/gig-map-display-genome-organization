@@ -9,9 +9,11 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+import pandas as pd
 from gig_map_io import ContrastMetagenomes, Pangenome, PangenomePhylogeny
 
 DEFAULT_DATASETS_DIR = "./datasets"
+# Preferred parameter when a contrast tests several; most contrasts test only one.
 CONTRAST_PARAMETER = "disease"
 BESTTREE_SUFFIX = ".msa.raxml.bestTree"
 
@@ -123,6 +125,9 @@ class DatasetRegistry:
     def phylogeny(self, dataset_id: str) -> PangenomePhylogeny:
         return _load_phylogeny(str(self.require(dataset_id, "phylogenies").data_dir))
 
+    def contrast_parameter(self, dataset_id: str) -> str:
+        return _contrast_parameter(str(self.require(dataset_id, "contrast").data_dir))
+
     def phylogeny_bin_names(self, dataset_id: str) -> list[str]:
         data_dir = self.require(dataset_id, "phylogenies").data_dir
         return list(_phylogeny_bin_names(str(data_dir)))
@@ -141,8 +146,19 @@ def _load_pangenome(data_dir: str) -> Pangenome:
 
 
 @lru_cache(maxsize=None)
+def _contrast_parameter(data_dir: str) -> str:
+    """The association parameter a contrast tests (e.g. 'disease', 'Invasiveness'),
+    read from its association.csv rather than assumed — contrasts differ."""
+    path = Path(data_dir) / "association" / "association.csv"
+    values = pd.read_csv(path, usecols=["parameter"])["parameter"].dropna().unique().tolist()
+    if not values:
+        raise ValueError(f"no 'parameter' values in {path}")
+    return CONTRAST_PARAMETER if CONTRAST_PARAMETER in values else str(values[0])
+
+
+@lru_cache(maxsize=None)
 def _load_contrast(data_dir: str) -> ContrastMetagenomes:
-    return ContrastMetagenomes(data_dir, CONTRAST_PARAMETER)
+    return ContrastMetagenomes(data_dir, _contrast_parameter(data_dir))
 
 
 @lru_cache(maxsize=None)

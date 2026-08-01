@@ -101,6 +101,8 @@ export function ExportBar({ functionId, params, disabled, onSaved }: ExportBarPr
       <input
         type="text"
         className="save-title"
+        autoComplete="off"
+        data-lpignore="true"
         placeholder="Figure title"
         value={title}
         onChange={(e) => setTitle(e.target.value)}

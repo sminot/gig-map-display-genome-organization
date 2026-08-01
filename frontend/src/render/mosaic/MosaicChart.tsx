@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { getMosaic, type VG } from './mosaicClient';
 import './mosaic.css';
 
@@ -17,6 +17,15 @@ export function MosaicChart({ build, deps }: MosaicChartProps) {
   // first chart of a session). Show a pending hint so the blank host doesn't
   // read as a broken render.
   const [pending, setPending] = useState(true);
+
+  // Clear the previous plot and show "Rendering…" BEFORE paint whenever the inputs
+  // change, so a stale chart is never shown next to already-updated sibling stats
+  // (the async rebuild below can lag the React re-render by a second or two).
+  useLayoutEffect(() => {
+    setPending(true);
+    host.current?.replaceChildren();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
 
   useEffect(() => {
     let cancelled = false;

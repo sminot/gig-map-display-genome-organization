@@ -7,13 +7,19 @@ from ..registry import Context, FigureSpec
 
 
 class Params(BaseModel):
-    pangenomeId: str
+    pangenomeIds: list[str]
     nReps: int = Field(default=10, ge=1, le=100)
 
 
 def run(params: Params, ctx: Context) -> pd.DataFrame:
-    pg = ctx.datasets.pangenome(params.pangenomeId)
-    return pg.rarefaction_curve_data(params.nReps)
+    if not params.pangenomeIds:
+        raise ValueError("select at least one pangenome")
+    frames = []
+    for pid in params.pangenomeIds:
+        df = ctx.datasets.pangenome(pid).rarefaction_curve_data(params.nReps).copy()
+        df["pangenome"] = ctx.datasets.get(pid).organism  # legend/colour label
+        frames.append(df)
+    return pd.concat(frames, ignore_index=True)
 
 
 SPEC = FigureSpec(

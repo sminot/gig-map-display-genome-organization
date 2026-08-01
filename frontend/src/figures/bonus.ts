@@ -1,4 +1,4 @@
-import { defineParams, datasetSelect, binSelect, text } from '../schema/fields';
+import { defineParams, datasetSelect, datasetMultiSelect, binSelect, text } from '../schema/fields';
 import { RarefactionRenderer } from '../render/mosaic/RarefactionRenderer';
 import { BinSizeHistogramRenderer } from '../render/mosaic/BinSizeHistogramRenderer';
 import { BinStatsRenderer } from '../render/mosaic/BinStatsRenderer';
@@ -12,9 +12,9 @@ export const rarefaction: FigureModule = {
   id: 'rarefaction',
   title: 'Rarefaction Curve',
   category: 'Summary',
-  description: 'Pangenome accumulation curve as genomes are added.',
+  description: 'Pangenome accumulation curve as genomes are added; compare multiple pangenomes.',
   family: 'mosaic',
-  params: defineParams({ pangenomeId: datasetSelect('Pangenome', 'pangenome') }),
+  params: defineParams({ pangenomeIds: datasetMultiSelect('Pangenomes', 'pangenome') }),
   Renderer: RarefactionRenderer,
 };
 

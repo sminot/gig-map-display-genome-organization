@@ -191,6 +191,16 @@ body {
   font-weight: 400;
 }
 
+/* Filter box for long option lists; stays visible atop the scrolling multi-list. */
+.sf-filter {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  width: 100%;
+  margin-bottom: 0.3rem;
+  font-size: 0.8rem;
+}
+
 .sf-empty {
   color: var(--muted);
   font-style: italic;
@@ -300,6 +310,7 @@ body {
 
 /* Output folder bar */
 .output-folder-bar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -326,25 +337,91 @@ body {
   font-family: inherit;
 }
 
-.output-folder-edit {
+.folder-browser {
+  position: absolute;
+  top: 100%;
+  left: 1rem;
+  z-index: 20;
+  width: 460px;
+  max-width: calc(100% - 2rem);
+  margin-top: 0.25rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  padding: 0.6rem;
   display: flex;
-  flex: 1;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.folder-browser-path {
+  display: flex;
   gap: 0.4rem;
 }
 
-.output-folder-edit input {
+.folder-browser-path input,
+.folder-browser-new input {
   flex: 1;
   padding: 0.35rem;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg);
   color: var(--text);
+  font-size: 0.8rem;
 }
 
-.output-folder-bar .output-folder-cancel {
-  background: var(--bg);
-  color: var(--muted);
+.folder-browser-path input {
+  font-family: monospace;
+}
+
+.folder-browser-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
   border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.folder-browser-list li button {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.folder-browser-list li button:hover {
+  background: var(--border);
+}
+
+.folder-browser-empty {
+  color: var(--muted);
+  font-style: italic;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.folder-browser-new {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.folder-browser-actions {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+.folder-browser .folder-browser-use {
+  background: var(--accent);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
 }
 
 .export-bar {
