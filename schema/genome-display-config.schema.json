@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sminot.github.io/gig-map-display-genome-organization/schema/genome-display-config.schema.json",
+  "title": "GenomeDisplayConfig",
+  "description": "Serializable description of one mounted genome-organization display. Every render-affecting choice is either here or derived deterministically from this config plus the referenced data. Data is referenced, never embedded: supply URLs for the fetch path, or rows for the injection path.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "description": "Config schema version. A reader rejects a config whose version exceeds the version it was built against; older versions are migrated forward. See DESIGN.md, 'Config versioning'.",
+      "type": "integer",
+      "minimum": 1,
+      "default": 1
+    },
+    "data": {
+      "description": "Which data to display. URLs are fetched by the display; rows are supplied by the caller and are never written out by configFromState.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "alignmentUrl": { "type": ["string", "null"] },
+        "geneAnnotationUrl": { "type": ["string", "null"] },
+        "genomeAnnotationUrl": { "type": ["string", "null"] },
+        "rows": {
+          "description": "Alignment rows: qseqid, sseqid, pident, length, qstart, qend, qlen, sstart, send, slen, genome, coverage.",
+          "type": ["array", "null"],
+          "items": { "type": "object" }
+        },
+        "geneAnnotationRows": {
+          "description": "Gene annotation rows. The first key, or 'gene_id' if present, is the gene identifier.",
+          "type": ["array", "null"],
+          "items": { "type": "object" }
+        },
+        "genomeAnnotationRows": {
+          "description": "Genome annotation rows. The first key, or 'genome_id' if present, is the genome identifier.",
+          "type": ["array", "null"],
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "referenceGenome": {
+      "description": "Genome drawn as the outer contig ring. Null selects the first genome alphabetically.",
+      "type": ["string", "null"]
+    },
+    "visibleGenomes": {
+      "description": "Genomes drawn as inner rings. Null means every genome except the reference. The canonical form: configFromState always writes this field and never hiddenGenomes.",
+      "type": ["array", "null"],
+      "items": { "type": "string" }
+    },
+    "hiddenGenomes": {
+      "description": "Input-only alias for visibleGenomes, expressed as a complement: every genome except the reference and these. Ignored when visibleGenomes is present. Exists so the standalone app's ?hidden= links keep resolving.",
+      "type": ["array", "null"],
+      "items": { "type": "string" }
+    },
+    "genomeOrder": {
+      "description": "Explicit ring order, as produced by the gene-content sort. Null falls back to the sort column, then alphabetical.",
+      "type": ["array", "null"],
+      "items": { "type": "string" }
+    },
+    "geneAnnotation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "categoryColumn": {
+          "description": "Annotation column that drives the gene highlight track. Null disables the track.",
+          "type": ["string", "null"]
+        },
+        "labelColumn": {
+          "description": "Annotation column shown as the gene name in the tooltip.",
+          "type": ["string", "null"]
+        },
+        "selectedCategories": {
+          "description": "Category values that are highlighted. Empty highlights nothing.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "customColors": {
+          "description": "Per-category colour overrides, category value to #rrggbb.",
+          "type": "object",
+          "additionalProperties": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+        },
+        "displayMode": { "enum": ["bars", "arrows"], "default": "bars" }
+      }
+    },
+    "genomeAnnotation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "colorColumn": {
+          "description": "Annotation column that colours genome rings.",
+          "type": ["string", "null"]
+        },
+        "groupColumn": {
+          "description": "Annotation column that groups and sorts rings. Overrides colorColumn for colour and sortColumn for order.",
+          "type": ["string", "null"]
+        },
+        "labelColumn": {
+          "description": "Annotation column shown instead of the genome id.",
+          "type": ["string", "null"]
+        },
+        "tooltipColumns": {
+          "description": "Extra annotation columns listed in the tooltip.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "sortColumn": { "type": ["string", "null"] },
+        "sortAscending": { "type": "boolean", "default": true },
+        "palette": {
+          "enum": ["Tableau10", "Pastel1", "Set1", "Set2", "Set3", "Accent", "Dark2", "Paired"],
+          "default": "Tableau10"
+        }
+      }
+    },
+    "zoom": {
+      "description": "The magnifying wedge. These are the spring targets, not a mid-animation sample: applying a config snaps to them so a rehydrated display reproduces the view exactly.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "focusAngle": {
+          "description": "Genome angle at the wedge centre, radians clockwise from 12 o'clock.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 6.283185307179587,
+          "default": 0
+        },
+        "zoomLevel": {
+          "description": "Angular magnification. 1 hides the wedge.",
+          "type": "number",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 1
+        },
+        "wedgeSpan": {
+          "description": "Wedge width as a fraction of the full circle.",
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 0.5,
+          "default": 0.3333333333333333
+        },
+        "wedgeGap": {
+          "description": "Pixel gap between the main circle and the wedge.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 80,
+          "default": 6
+        },
+        "wedgeHeightScale": {
+          "description": "Radial share of the viewport given to the wedge. Larger shrinks the main circle.",
+          "type": "number",
+          "minimum": 2,
+          "maximum": 10,
+          "default": 2
+        }
+      }
+    },
+    "theme": {
+      "description": "Colour theme. Chooses the genome palette, the annotation track tint, the contig label colour and the export background.",
+      "enum": ["dark", "light"],
+      "default": "dark"
+    },
+    "controls": {
+      "description": "Render the sidebar. False mounts the figure alone, for a host application that supplies its own controls.",
+      "type": "boolean",
+      "default": true
+    },
+    "controlsCollapsed": {
+      "description": "Start with the sidebar collapsed. Ignored when controls is false.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

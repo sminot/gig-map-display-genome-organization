@@ -34,9 +34,14 @@ http://localhost:8080/?data=data/myproject.genomes.aln.csv.gz
 
 The entire app — layout, styles, and JavaScript — is loaded by a single
 `pangenome-loader.js` script pulled from jsDelivr. `index.html` itself is
-only 11 lines and contains no application code.
+11 lines and contains no application code.
+
+Since v2 the app is ES modules, so the loader injects an import map for d3 and
+Papa Parse and then one module entry point. If your page already declares an
+import map, the loader will say so and stop; add `d3` and `papaparse` to your own
+map and load `src/standalone.js` from the CDN yourself.
 
 ## Upgrading
 
-Change the `@v1.0.3` version tag in `index.html`'s single `<script>` tag.
+Change the `@v2.0.0` version tag in `index.html`'s single `<script>` tag.
 Latest releases: https://github.com/sminot/gig-map-display-genome-organization/releases
